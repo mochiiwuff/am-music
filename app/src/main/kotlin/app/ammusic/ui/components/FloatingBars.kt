@@ -1,5 +1,7 @@
 package app.ammusic.ui.components
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -36,10 +38,13 @@ import app.ammusic.ui.player.PlayPauseIcon
 import app.ammusic.ui.player.PlayerSheetState
 import app.ammusic.ui.theme.AmTheme
 
-enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
-    Home("Accueil", AmIcons.Home, AmIcons.HomeFilled),
-    Search("Recherche", AmIcons.Search, AmIcons.SearchBold),
-    Library("Bibliothèque", AmIcons.Library, AmIcons.LibraryFilled),
+enum class Tab(private val fr: String, private val en: String, val icon: ImageVector, val selectedIcon: ImageVector) {
+    Home("Accueil", "Home", AmIcons.Home, AmIcons.HomeFilled),
+    Search("Recherche", "Search", AmIcons.Search, AmIcons.SearchBold),
+    Library("Bibliothèque", "Library", AmIcons.Library, AmIcons.LibraryFilled),
+    ;
+
+    val label: String get() = tr(fr, en)
 }
 
 private val TabBarHeight = 64.dp
@@ -159,7 +164,7 @@ private fun TabBar(
             AmIcon(current.selectedIcon, tint = colors.accent)
         }
         if (collapsed) {
-            Box(Modifier.fillMaxSize().pressable(scale = 0.9f, haptic = true, label = "Afficher les onglets", onClick = onExpand))
+            Box(Modifier.fillMaxSize().pressable(scale = 0.9f, haptic = true, label = tr("Afficher les onglets", "Show tabs"), onClick = onExpand))
         }
     }
 }
@@ -180,7 +185,7 @@ private fun MiniPlayer(player: PlayerState, sheet: PlayerSheetState, onTogglePla
                 enabled = track != null,
                 onDragStopped = { sheet.settle(-it) },
             )
-            .pressable(scale = 0.985f, label = "Ouvrir le lecteur") { if (track != null) sheet.expand() }
+            .pressable(scale = 0.985f, label = tr("Ouvrir le lecteur", "Open player")) { if (track != null) sheet.expand() }
             .padding(start = 8.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -194,25 +199,25 @@ private fun MiniPlayer(player: PlayerState, sheet: PlayerSheetState, onTogglePla
             circle = true,
         )
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            AmText(track?.title ?: "Aucune lecture en cours", style = AmTheme.type.subhead, maxLines = 1)
+            AmText(track?.title ?: tr("Aucune lecture en cours", "Nothing playing"), style = AmTheme.type.subhead, maxLines = 1)
             val subtitle = when {
-                track == null -> "Choisissez un titre"
-                player.failed -> "Lecture impossible, nouvel essai…"
-                player.isLoading -> "Chargement…"
+                track == null -> tr("Choisissez un titre", "Pick a song")
+                player.failed -> tr("Lecture impossible, nouvel essai…", "Playback failed, retrying…")
+                player.isLoading -> tr("Chargement…", "Loading…")
                 else -> track.artists
             }
             AmText(subtitle, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
         if (track != null) {
             Box(
-                Modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (active) "Pause" else "Lecture", onClick = onTogglePlay),
+                Modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (active) "Pause" else tr("Lecture", "Play"), onClick = onTogglePlay),
                 contentAlignment = Alignment.Center,
             ) {
                 PlayPauseIcon(playing = active, color = colors.text, size = 26.dp)
             }
             IconButton(
                 icon = AmIcons.Next,
-                label = "Titre suivant",
+                label = tr("Titre suivant", "Next song"),
                 onClick = onNext,
                 tint = if (player.hasNext) colors.text else colors.textTertiary,
             )

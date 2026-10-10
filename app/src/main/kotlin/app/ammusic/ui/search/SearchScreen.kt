@@ -1,5 +1,7 @@
 package app.ammusic.ui.search
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -59,7 +61,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
         viewModel.submit(it)
     }
 
-    LargeTitleScreen(title = "Recherche", trailing = { ProfileButton(onProfile) }) {
+    LargeTitleScreen(title = tr("Recherche", "Search"), trailing = { ProfileButton(onProfile) }) {
         item(key = "field", contentType = "field") {
             SearchField(state.query, onChange = viewModel::onQuery, onSubmit = { submit(state.query) })
         }
@@ -73,13 +75,13 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                 if (state.history.isNotEmpty()) {
                     item(key = "historyHeader", contentType = "header") {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            SectionHeader("Recherches récentes", Modifier.weight(1f), top = 20.dp)
+                            SectionHeader(tr("Recherches récentes", "Recent searches"), Modifier.weight(1f), top = 20.dp)
                             AmText(
-                                text = "Effacer",
+                                text = tr("Effacer", "Clear"),
                                 style = AmTheme.type.subhead,
                                 color = AmTheme.colors.accent,
                                 modifier = Modifier
-                                    .pressable(label = "Effacer l'historique", onClick = viewModel::clearHistory)
+                                    .pressable(label = tr("Effacer l'historique", "Clear history"), onClick = viewModel::clearHistory)
                                     .padding(horizontal = 20.dp, vertical = 14.dp),
                             )
                         }
@@ -93,7 +95,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                             AmText(entry, maxLines = 1, modifier = Modifier.weight(1f).padding(start = 14.dp))
                             IconButton(
                                 icon = AmIcons.Close,
-                                label = "Retirer de l'historique",
+                                label = tr("Retirer de l'historique", "Remove from history"),
                                 onClick = { viewModel.forget(entry) },
                                 tint = AmTheme.colors.textTertiary,
                                 iconSize = 16.dp,
@@ -102,7 +104,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                     }
                 }
                 if (state.moods.isNotEmpty()) {
-                    item(key = "browseHeader", contentType = "header") { SectionHeader("Parcourir les catégories") }
+                    item(key = "browseHeader", contentType = "header") { SectionHeader(tr("Parcourir les catégories", "Browse categories")) }
                     items(state.moods.chunked(2), key = { it.first().title }, contentType = { "tiles" }) { pair ->
                         MoodRow(pair, height = 96)
                     }
@@ -123,8 +125,8 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
 
             results is SearchResults.Error -> item(key = "error") {
                 ErrorState(
-                    title = "Recherche impossible",
-                    message = "Vérifiez votre connexion internet, puis réessayez.",
+                    title = tr("Recherche impossible", "Search failed"),
+                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
                     onRetry = { viewModel.submit() },
                 )
             }
@@ -133,7 +135,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                 if (results.sections.isEmpty()) {
                     item(key = "empty") {
                         AmText(
-                            text = "Aucun résultat pour « ${state.query} ».",
+                            text = tr("Aucun résultat pour « ${state.query} ».", "No results for “${state.query}”."),
                             color = AmTheme.colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 32.dp),
                         )
@@ -154,7 +156,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                 if (results.items.isEmpty()) {
                     item(key = "empty") {
                         AmText(
-                            text = "Aucun résultat de ce type pour « ${state.query} ».",
+                            text = tr("Aucun résultat de ce type pour « ${state.query} ».", "No results of this kind for “${state.query}”."),
                             color = AmTheme.colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 32.dp),
                         )
@@ -174,21 +176,21 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
     }
 }
 
-private val SectionFilters = mapOf(
-    "Titres" to YtSearchFilter.Songs,
-    "Clips" to YtSearchFilter.Videos,
+private val SectionFilters get() = mapOf(
+    tr("Titres", "Songs") to YtSearchFilter.Songs,
+    tr("Clips", "Videos") to YtSearchFilter.Videos,
     "Albums" to YtSearchFilter.Albums,
-    "Artistes" to YtSearchFilter.Artists,
-    "Playlists de la communauté" to YtSearchFilter.Playlists,
+    tr("Artistes", "Artists") to YtSearchFilter.Artists,
+    tr("Playlists de la communauté", "Community playlists") to YtSearchFilter.Playlists,
 )
 
-private val Filters = listOf(
-    null to "Tout",
-    YtSearchFilter.Songs to "Titres",
+private val Filters get() = listOf(
+    null to tr("Tout", "All"),
+    YtSearchFilter.Songs to tr("Titres", "Songs"),
     YtSearchFilter.Albums to "Albums",
-    YtSearchFilter.Artists to "Artistes",
+    YtSearchFilter.Artists to tr("Artistes", "Artists"),
     YtSearchFilter.Playlists to "Playlists",
-    YtSearchFilter.Videos to "Clips",
+    YtSearchFilter.Videos to tr("Clips", "Videos"),
 )
 
 @Composable
@@ -232,7 +234,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onSubmit: () 
         AmIcon(AmIcons.Search, tint = colors.textSecondary, size = 20.dp)
         Box(Modifier.padding(start = 10.dp).weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
-                AmText("Artistes, titres, albums…", color = colors.textTertiary, maxLines = 1)
+                AmText(tr("Artistes, titres, albums…", "Artists, songs, albums…"), color = colors.textTertiary, maxLines = 1)
             }
             BasicTextField(
                 value = query,
@@ -246,7 +248,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onSubmit: () 
             )
         }
         if (query.isNotEmpty()) {
-            IconButton(AmIcons.Close, label = "Effacer", onClick = { onChange("") }, tint = colors.textSecondary, iconSize = 18.dp)
+            IconButton(AmIcons.Close, label = tr("Effacer", "Clear"), onClick = { onChange("") }, tint = colors.textSecondary, iconSize = 18.dp)
         }
     }
 }

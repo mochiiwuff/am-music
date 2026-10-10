@@ -1,5 +1,7 @@
 package app.ammusic.ui.detail
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -96,7 +98,7 @@ fun DetailScaffold(
                         .align(Alignment.CenterStart)
                         .padding(start = 8.dp)
                         .size(48.dp)
-                        .pressable(scale = 0.88f, label = "Retour", onClick = actions.back),
+                        .pressable(scale = 0.88f, label = tr("Retour", "Back"), onClick = actions.back),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (underStatusBar) {

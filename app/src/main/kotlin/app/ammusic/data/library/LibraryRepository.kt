@@ -1,5 +1,7 @@
 package app.ammusic.data.library
 
+import app.ammusic.youtube.tr
+
 import android.content.Context
 import android.util.Log
 import androidx.room.Room
@@ -86,11 +88,11 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
     suspend fun createPlaylist(title: String): String? = withContext(Dispatchers.IO) {
         if (signedIn) {
             val id = YouTubeMusic.createPlaylist(title).getOrNull() ?: return@withContext null
-            dao.upsertPlaylists(listOf(PlaylistRow(id, title, "Votre playlist", null, now(), PlaylistKind.Mine)))
+            dao.upsertPlaylists(listOf(PlaylistRow(id, title, tr("Votre playlist", "Your playlist"), null, now(), PlaylistKind.Mine)))
             id
         } else {
             val id = LocalPrefix + UUID.randomUUID()
-            dao.upsertPlaylists(listOf(PlaylistRow(id, title, "Sur ce téléphone", null, now(), PlaylistKind.Local)))
+            dao.upsertPlaylists(listOf(PlaylistRow(id, title, tr("Sur ce téléphone", "On this phone"), null, now(), PlaylistKind.Local)))
             id
         }
     }

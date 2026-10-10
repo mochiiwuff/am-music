@@ -1,5 +1,7 @@
 package app.ammusic.ui.settings
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -42,7 +44,7 @@ import app.ammusic.ui.theme.AccentChoices
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.ui.theme.ThemeMode
 
-private val ThemeLabels = mapOf(ThemeMode.System to "Système", ThemeMode.Dark to "Sombre", ThemeMode.Light to "Clair")
+private val ThemeLabels get() = mapOf(ThemeMode.System to tr("Système", "System"), ThemeMode.Dark to tr("Sombre", "Dark"), ThemeMode.Light to tr("Clair", "Light"))
 
 @Composable
 fun SettingsScreen(
@@ -56,17 +58,17 @@ fun SettingsScreen(
     val colors = AmTheme.colors
     val account by accountViewModel.account.collectAsStateWithLifecycle()
     LargeTitleScreen(
-        title = "Réglages",
-        leading = { IconButton(AmIcons.ChevronLeft, label = "Retour", onClick = onBack, tint = colors.accent, iconSize = 26.dp) },
+        title = tr("Réglages", "Settings"),
+        leading = { IconButton(AmIcons.ChevronLeft, label = tr("Retour", "Back"), onClick = onBack, tint = colors.accent, iconSize = 26.dp) },
     ) {
         item(key = "account") { AccountCard(account, onSignOut = accountViewModel::signOut) }
-        item(key = "themeLabel") { Label("Thème") }
+        item(key = "themeLabel") { Label(tr("Thème", "Theme")) }
         item(key = "theme") { ThemePicker(themeMode, onThemeMode) }
-        item(key = "accentLabel") { Label("Couleur d'accent") }
+        item(key = "accentLabel") { Label(tr("Couleur d'accent", "Accent color")) }
         item(key = "accent") { AccentPicker(accentIndex, onAccent) }
         item(key = "note") {
             AmText(
-                text = "Qualité audio, minuteur de sommeil et cache arriveront avec la phase 6.",
+                text = tr("Qualité audio, minuteur de sommeil et cache arriveront avec la phase 6.", "Audio quality, sleep timer and cache settings are coming soon."),
                 style = AmTheme.type.footnote,
                 color = colors.textTertiary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp),
@@ -127,7 +129,7 @@ private fun AccentPicker(selected: Int, onSelect: (Int) -> Unit) {
                 label = "accentRing",
             )
             Box(
-                Modifier.size(52.dp).pressable(scale = 0.85f, haptic = true, label = "Couleur ${index + 1}") { onSelect(index) },
+                Modifier.size(52.dp).pressable(scale = 0.85f, haptic = true, label = tr("Couleur ${index + 1}", "Color ${index + 1}")) { onSelect(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -150,9 +152,9 @@ private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
         actions.sheet(
             MenuRequest(
                 title = account?.name.orEmpty(),
-                subtitle = "Votre bibliothèque restera sur votre compte.",
+                subtitle = tr("Votre bibliothèque restera sur votre compte.", "Your library will stay on your account."),
                 thumbnail = account?.avatar,
-                actions = listOf(MenuAction(AmIcons.Close, "Se déconnecter", destructive = true, onClick = onSignOut)),
+                actions = listOf(MenuAction(AmIcons.Close, tr("Se déconnecter", "Sign out"), destructive = true, onClick = onSignOut)),
             ),
         )
     }
@@ -160,7 +162,7 @@ private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
         Modifier
             .padding(start = 20.dp, end = 20.dp, top = 12.dp)
             .fillMaxWidth()
-            .pressable(scale = 0.98f, label = if (account == null) "Se connecter" else "Se déconnecter") {
+            .pressable(scale = 0.98f, label = if (account == null) tr("Se connecter", "Sign in") else tr("Se déconnecter", "Sign out")) {
                 if (account == null) actions.openLogin() else confirmSignOut()
             }
             .clip(RoundedCornerShape(18.dp))
@@ -176,11 +178,11 @@ private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
             }
         }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-            AmText(account?.name ?: "Se connecter", style = AmTheme.type.headline, maxLines = 1)
+            AmText(account?.name ?: tr("Se connecter", "Sign in"), style = AmTheme.type.headline, maxLines = 1)
             AmText(
                 text = when {
-                    account == null -> "Vos titres aimés, playlists et recommandations YouTube Music."
-                    else -> account.email ?: "Compte YouTube Music"
+                    account == null -> tr("Vos titres aimés, playlists et recommandations YouTube Music.", "Your YouTube Music liked songs, playlists and recommendations.")
+                    else -> account.email ?: tr("Compte YouTube Music", "YouTube Music account")
                 },
                 style = AmTheme.type.footnote,
                 color = colors.textSecondary,
@@ -190,7 +192,7 @@ private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
         if (account == null) {
             AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
         } else {
-            AmText("Déconnexion", style = AmTheme.type.subhead, color = colors.accent)
+            AmText(tr("Déconnexion", "Sign out"), style = AmTheme.type.subhead, color = colors.accent)
         }
     }
 }

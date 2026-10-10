@@ -1,5 +1,7 @@
 package app.ammusic.ui
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -152,34 +154,34 @@ fun AppRoot(
     val openArtist = { id: String, name: String -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) }
 
     val choosePlaylist = { track: YtTrack ->
-        val create = MenuAction(AmIcons.Plus, "Nouvelle playlist") {
-            promptRequest = PromptRequest("Nouvelle playlist", "") { title -> libraryViewModel.addToNewPlaylist(title, track) }
+        val create = MenuAction(AmIcons.Plus, tr("Nouvelle playlist", "New playlist")) {
+            promptRequest = PromptRequest(tr("Nouvelle playlist", "New playlist"), "") { title -> libraryViewModel.addToNewPlaylist(title, track) }
         }
         val existing = playlists.filter { it.editable }.map { playlist ->
             MenuAction(AmIcons.Playlist, playlist.title) { libraryViewModel.addToPlaylist(playlist, track) }
         }
-        sheetRequest = MenuRequest("Ajouter à une playlist", track.title, track.thumbnail, listOf(create) + existing)
+        sheetRequest = MenuRequest(tr("Ajouter à une playlist", "Add to a playlist"), track.title, track.thumbnail, listOf(create) + existing)
     }
 
     val trackActions = { track: YtTrack ->
         val liked = track.id in likedIds
         listOfNotNull(
-            MenuAction(AmIcons.PlayNext, "Lire ensuite") { playerViewModel.playNext(track) },
-            MenuAction(AmIcons.QueueAdd, "Ajouter à la file d'attente") { playerViewModel.addToQueue(track) },
-            MenuAction(if (liked) AmIcons.HeartFilled else AmIcons.Heart, if (liked) "Retirer des titres aimés" else "Ajouter aux titres aimés") {
+            MenuAction(AmIcons.PlayNext, tr("Lire ensuite", "Play next")) { playerViewModel.playNext(track) },
+            MenuAction(AmIcons.QueueAdd, tr("Ajouter à la file d'attente", "Add to queue")) { playerViewModel.addToQueue(track) },
+            MenuAction(if (liked) AmIcons.HeartFilled else AmIcons.Heart, if (liked) tr("Retirer des titres aimés", "Remove from liked songs") else tr("Ajouter aux titres aimés", "Add to liked songs")) {
                 libraryViewModel.toggleLike(track)
             },
-            MenuAction(AmIcons.Playlist, "Ajouter à une playlist") { choosePlaylist(track) },
-            MenuAction(AmIcons.Radio, "Lancer la radio du titre") { playerViewModel.play(track) },
+            MenuAction(AmIcons.Playlist, tr("Ajouter à une playlist", "Add to a playlist")) { choosePlaylist(track) },
+            MenuAction(AmIcons.Radio, tr("Lancer la radio du titre", "Start song radio")) { playerViewModel.play(track) },
             track.albumId?.let { id ->
-                MenuAction(AmIcons.Album, "Voir l'album") {
+                MenuAction(AmIcons.Album, tr("Voir l'album", "Go to album")) {
                     nav.navigate(CollectionRoute(true, id, track.album.orEmpty(), track.artists, track.thumbnail, "", RowCoverSize))
                 }
             },
             track.artistId?.let { id ->
-                MenuAction(AmIcons.Artist, "Voir l'artiste") { openArtist(id, track.artists.substringBefore(", ")) }
+                MenuAction(AmIcons.Artist, tr("Voir l'artiste", "Go to artist")) { openArtist(id, track.artists.substringBefore(", ")) }
             },
-            MenuAction(AmIcons.Share, "Partager") {
+            MenuAction(AmIcons.Share, tr("Partager", "Share")) {
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${track.id}")
                 context.startActivity(Intent.createChooser(send, null))
             },

@@ -1,5 +1,7 @@
 package app.ammusic.ui.library
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,12 +51,12 @@ import app.ammusic.youtube.model.YtTrack
 
 private class Shelf(val kind: String, val label: String, val icon: ImageVector)
 
-private val Shelves = listOf(
+private val Shelves get() = listOf(
     Shelf(LibraryKind.Playlists, "Playlists", AmIcons.Playlist),
-    Shelf(LibraryKind.Artists, "Artistes", AmIcons.Artist),
+    Shelf(LibraryKind.Artists, tr("Artistes", "Artists"), AmIcons.Artist),
     Shelf(LibraryKind.Albums, "Albums", AmIcons.Album),
-    Shelf(LibraryKind.Liked, "Titres aimés", AmIcons.Heart),
-    Shelf(LibraryKind.History, "Historique", AmIcons.Clock),
+    Shelf(LibraryKind.Liked, tr("Titres aimés", "Liked songs"), AmIcons.Heart),
+    Shelf(LibraryKind.History, tr("Historique", "History"), AmIcons.Clock),
 )
 
 @Composable
@@ -64,7 +66,7 @@ fun LibraryScreen(onProfile: () -> Unit, viewModel: LibraryViewModel = hiltViewM
     val actions = LocalActions.current
     LaunchedEffect(account) { viewModel.refresh() }
 
-    LargeTitleScreen(title = "Bibliothèque", trailing = { ProfileButton(onProfile) }) {
+    LargeTitleScreen(title = tr("Bibliothèque", "Library"), trailing = { ProfileButton(onProfile) }) {
         items(Shelves, key = { it.kind }, contentType = { "shelf" }) { shelf ->
             ShelfRow(shelf) { actions.openLibrary(shelf.kind) }
         }
@@ -72,11 +74,11 @@ fun LibraryScreen(onProfile: () -> Unit, viewModel: LibraryViewModel = hiltViewM
             item(key = "guest", contentType = "guest") { GuestCard(onConnect = actions.openLogin) }
         }
         if (recent.isNotEmpty()) {
-            item(key = "recentHeader", contentType = "header") { SectionHeader("Ajouts récents") }
+            item(key = "recentHeader", contentType = "header") { SectionHeader(tr("Ajouts récents", "Recently added")) }
             tileGrid(recent, "library")
         } else {
             item(key = "empty", contentType = "text") {
-                Hint("Votre bibliothèque est vide. Touchez « + » en haut d'un album, d'une playlist ou d'un artiste pour le retrouver ici.")
+                Hint(tr("Votre bibliothèque est vide. Touchez « + » en haut d'un album, d'une playlist ou d'un artiste pour le retrouver ici.", "Your library is empty. Tap “+” at the top of an album, playlist or artist to find it here."))
             }
         }
     }
@@ -114,9 +116,9 @@ private fun GuestCard(onConnect: () -> Unit) {
             .background(colors.surface)
             .padding(18.dp),
     ) {
-        AmText("Retrouvez votre musique", style = AmTheme.type.headline)
+        AmText(tr("Retrouvez votre musique", "Bring your music"), style = AmTheme.type.headline)
         AmText(
-            text = "Connectez votre compte YouTube Music pour retrouver vos titres aimés, vos playlists et des recommandations faites pour vous.",
+            text = tr("Connectez votre compte YouTube Music pour retrouver vos titres aimés, vos playlists et des recommandations faites pour vous.", "Connect your YouTube Music account to get your liked songs, your playlists and recommendations made for you."),
             style = AmTheme.type.subhead,
             color = colors.textSecondary,
             modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
@@ -124,13 +126,13 @@ private fun GuestCard(onConnect: () -> Unit) {
         Box(
             Modifier
                 .height(44.dp)
-                .pressable(haptic = true, label = "Se connecter", onClick = onConnect)
+                .pressable(haptic = true, label = tr("Se connecter", "Sign in"), onClick = onConnect)
                 .clip(CircleShape)
                 .background(colors.accent)
                 .padding(horizontal = 22.dp),
             contentAlignment = Alignment.Center,
         ) {
-            AmText("Se connecter", style = AmTheme.type.headline, color = Color.White)
+            AmText(tr("Se connecter", "Sign in"), style = AmTheme.type.headline, color = Color.White)
         }
     }
 }
@@ -165,33 +167,33 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val newPlaylist = { actions.prompt("Nouvelle playlist", "") { title -> viewModel.createPlaylist(title) } }
+    val newPlaylist = { actions.prompt(tr("Nouvelle playlist", "New playlist"), "") { title -> viewModel.createPlaylist(title) } }
 
     LargeTitleScreen(
         title = shelf.label,
-        leading = { IconButton(AmIcons.ChevronLeft, label = "Retour", onClick = actions.back) },
+        leading = { IconButton(AmIcons.ChevronLeft, label = tr("Retour", "Back"), onClick = actions.back) },
         trailing = {
             when {
-                kind == LibraryKind.Playlists -> IconButton(AmIcons.Plus, label = "Nouvelle playlist", onClick = newPlaylist, tint = AmTheme.colors.accent)
+                kind == LibraryKind.Playlists -> IconButton(AmIcons.Plus, label = tr("Nouvelle playlist", "New playlist"), onClick = newPlaylist, tint = AmTheme.colors.accent)
                 kind == LibraryKind.History && history.isNotEmpty() ->
-                    IconButton(AmIcons.Trash, label = "Effacer l'historique", onClick = viewModel::clearHistory, tint = AmTheme.colors.textSecondary)
+                    IconButton(AmIcons.Trash, label = tr("Effacer l'historique", "Clear history"), onClick = viewModel::clearHistory, tint = AmTheme.colors.textSecondary)
             }
         },
     ) {
         when (kind) {
-            LibraryKind.Liked -> tracks(liked, origin, "Touchez le cœur du lecteur pour garder un titre ici.")
-            LibraryKind.History -> tracks(history, origin, "Les titres que vous écoutez apparaîtront ici.")
+            LibraryKind.Liked -> tracks(liked, origin, tr("Touchez le cœur du lecteur pour garder un titre ici.", "Tap the heart in the player to keep a song here."))
+            LibraryKind.History -> tracks(history, origin, tr("Les titres que vous écoutez apparaîtront ici.", "Songs you listen to will show up here."))
             LibraryKind.Albums -> {
-                if (albums.isEmpty()) item(key = "empty") { Hint("Touchez « + » en haut d'un album pour le garder ici.") }
+                if (albums.isEmpty()) item(key = "empty") { Hint(tr("Touchez « + » en haut d'un album pour le garder ici.", "Tap “+” at the top of an album to keep it here.")) }
                 item(key = "top") { Spacer(Modifier.height(12.dp)) }
                 tileGrid(albums, origin)
             }
             LibraryKind.Artists -> {
-                if (artists.isEmpty()) item(key = "empty") { Hint("Touchez « + » en haut de la page d'un artiste pour le suivre.") }
+                if (artists.isEmpty()) item(key = "empty") { Hint(tr("Touchez « + » en haut de la page d'un artiste pour le suivre.", "Tap “+” at the top of an artist page to follow them.")) }
                 rows(artists, origin)
             }
             else -> {
-                if (playlists.isEmpty()) item(key = "empty") { Hint("Touchez « + » pour créer votre première playlist.") }
+                if (playlists.isEmpty()) item(key = "empty") { Hint(tr("Touchez « + » pour créer votre première playlist.", "Tap “+” to create your first playlist.")) }
                 rows(playlists, origin)
             }
         }
@@ -212,8 +214,8 @@ private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyHin
     item(key = "buttons", contentType = "buttons") {
         val actions = LocalActions.current
         Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            PillButton("Lecture", AmIcons.Play, filled = true, enabled = true, onClick = { actions.playAll(tracks, 0, false) }, modifier = Modifier.weight(1f))
-            PillButton("Aléatoire", AmIcons.Shuffle, filled = false, enabled = true, onClick = { actions.playAll(tracks, 0, true) }, modifier = Modifier.weight(1f))
+            PillButton(tr("Lecture", "Play"), AmIcons.Play, filled = true, enabled = true, onClick = { actions.playAll(tracks, 0, false) }, modifier = Modifier.weight(1f))
+            PillButton(tr("Aléatoire", "Shuffle"), AmIcons.Shuffle, filled = false, enabled = true, onClick = { actions.playAll(tracks, 0, true) }, modifier = Modifier.weight(1f))
         }
     }
     itemsIndexed(tracks, key = { _, track -> track.id }, contentType = { _, _ -> "track" }) { index, track ->

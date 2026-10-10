@@ -67,16 +67,16 @@ object YouTubeMusic {
         }
     }
 
-    private val SearchTitles = mapOf(
-        "Top result" to "Meilleur résultat",
-        "Songs" to "Titres",
-        "Videos" to "Clips",
+    private val SearchTitles get() = mapOf(
+        "Top result" to tr("Meilleur résultat", "Top result"),
+        "Songs" to tr("Titres", "Songs"),
+        "Videos" to tr("Clips", "Videos"),
         "Albums" to "Albums",
-        "Artists" to "Artistes",
+        "Artists" to tr("Artistes", "Artists"),
         "Playlists" to "Playlists",
-        "Community playlists" to "Playlists de la communauté",
-        "Featured playlists" to "Playlists à la une",
-        "Other" to "Autres",
+        "Community playlists" to tr("Playlists de la communauté", "Community playlists"),
+        "Featured playlists" to tr("Playlists à la une", "Featured playlists"),
+        "Other" to tr("Autres", "Other"),
     )
 
     suspend fun radio(videoId: String): Result<List<YtTrack>> = io {

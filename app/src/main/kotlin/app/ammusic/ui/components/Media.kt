@@ -2,6 +2,8 @@
 
 package app.ammusic.ui.components
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -149,13 +151,13 @@ fun ErrorState(title: String, message: String, onRetry: () -> Unit, modifier: Mo
         Box(
             Modifier
                 .height(48.dp)
-                .pressable(haptic = true, label = "Réessayer", onClick = onRetry)
+                .pressable(haptic = true, label = tr("Réessayer", "Retry"), onClick = onRetry)
                 .clip(CircleShape)
                 .background(colors.accent)
                 .padding(horizontal = 28.dp),
             contentAlignment = Alignment.Center,
         ) {
-            AmText("Réessayer", style = AmTheme.type.headline, color = Color.White)
+            AmText(tr("Réessayer", "Retry"), style = AmTheme.type.headline, color = Color.White)
         }
     }
 }
@@ -193,7 +195,7 @@ fun ItemRow(
             AmText(item.caption(), style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
         if (track != null) {
-            IconButton(AmIcons.More, label = "Plus d'options", onClick = { actions.menu(track, extras) }, tint = colors.textSecondary, iconSize = 20.dp)
+            IconButton(AmIcons.More, label = tr("Plus d'options", "More options"), onClick = { actions.menu(track, extras) }, tint = colors.textSecondary, iconSize = 20.dp)
         } else {
             AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
         }

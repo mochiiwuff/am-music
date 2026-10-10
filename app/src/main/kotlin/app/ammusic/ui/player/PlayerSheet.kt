@@ -1,5 +1,7 @@
 package app.ammusic.ui.player
 
+import app.ammusic.youtube.tr
+
 import android.app.Activity
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
@@ -270,7 +272,7 @@ private fun PlayerContent(
     val active = state.isPlaying || state.isLoading
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 28.dp)) {
         Box(
-            Modifier.fillMaxWidth().height(48.dp).pressable(label = "Réduire le lecteur", onClick = onCollapse),
+            Modifier.fillMaxWidth().height(48.dp).pressable(label = tr("Réduire le lecteur", "Minimize player"), onClick = onCollapse),
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(width = 38.dp, height = 5.dp).clip(CircleShape).background(Color(0x66FFFFFF)))
@@ -285,7 +287,7 @@ private fun PlayerContent(
                 Column(Modifier.weight(1f)) {
                     AmText(track.title, style = AmTheme.type.section, color = Color.White, maxLines = 1)
                     AmText(
-                        text = if (state.failed) "Lecture impossible, nouvel essai…" else track.artists,
+                        text = if (state.failed) tr("Lecture impossible, nouvel essai…", "Playback failed, retrying…") else track.artists,
                         color = Color(0xB3FFFFFF),
                         maxLines = 1,
                     )
@@ -296,14 +298,14 @@ private fun PlayerContent(
             ProgressSection(track.id, state.isPlaying, state.durationMs, player)
 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
-                BigButton(AmIcons.Previous, "Titre précédent", player::previous)
+                BigButton(AmIcons.Previous, tr("Titre précédent", "Previous song"), player::previous)
                 Box(
-                    Modifier.size(84.dp).pressable(scale = 0.86f, haptic = true, label = if (active) "Pause" else "Lecture", onClick = player::toggle),
+                    Modifier.size(84.dp).pressable(scale = 0.86f, haptic = true, label = if (active) "Pause" else tr("Lecture", "Play"), onClick = player::toggle),
                     contentAlignment = Alignment.Center,
                 ) {
                     PlayPauseIcon(playing = active, color = Color.White, size = 60.dp)
                 }
-                BigButton(AmIcons.Next, "Titre suivant", player::next, enabled = state.hasNext)
+                BigButton(AmIcons.Next, tr("Titre suivant", "Next song"), player::next, enabled = state.hasNext)
             }
 
             val (volume, setVolume) = rememberSystemVolume()
@@ -314,12 +316,12 @@ private fun PlayerContent(
             }
 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
-                ToggleButton(AmIcons.Shuffle, "Lecture aléatoire", state.shuffle, player::toggleShuffle)
-                ToggleButton(AmIcons.Lyrics, "Paroles", false, onLyrics)
-                ToggleButton(AmIcons.Queue, "File d'attente", false, onQueue)
+                ToggleButton(AmIcons.Shuffle, tr("Lecture aléatoire", "Shuffle"), state.shuffle, player::toggleShuffle)
+                ToggleButton(AmIcons.Lyrics, tr("Paroles", "Lyrics"), false, onLyrics)
+                ToggleButton(AmIcons.Queue, tr("File d'attente", "Queue"), false, onQueue)
                 ToggleButton(
                     icon = if (state.repeat == RepeatMode.One) AmIcons.RepeatOne else AmIcons.Repeat,
-                    label = "Répétition",
+                    label = tr("Répétition", "Repeat"),
                     active = state.repeat != RepeatMode.Off,
                     onClick = player::cycleRepeat,
                 )

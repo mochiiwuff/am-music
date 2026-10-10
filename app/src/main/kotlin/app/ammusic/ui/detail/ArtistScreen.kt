@@ -1,5 +1,7 @@
 package app.ammusic.ui.detail
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloat
@@ -90,7 +92,7 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
         state = list,
         revealAfter = 250.dp,
         underStatusBar = true,
-        trailing = { SaveButton(route.id in savedIds, addLabel = "Suivre l'artiste", removeLabel = "Ne plus suivre", onToggle = viewModel::toggleFollow) },
+        trailing = { SaveButton(route.id in savedIds, addLabel = tr("Suivre l'artiste", "Follow artist"), removeLabel = tr("Ne plus suivre", "Unfollow"), onToggle = viewModel::toggleFollow) },
     ) {
         item(key = "hero", contentType = "hero") {
             ArtistHero(
@@ -108,8 +110,8 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
 
             state.status == LoadStatus.Error || page == null -> item(key = "error") {
                 ErrorState(
-                    title = "Artiste indisponible",
-                    message = "Vérifiez votre connexion internet, puis réessayez.",
+                    title = tr("Artiste indisponible", "Artist unavailable"),
+                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
                     onRetry = viewModel::load,
                 )
             }
@@ -136,7 +138,7 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
                     }
                 }
                 page.description?.let { description ->
-                    item(key = "aboutHeader", contentType = "header") { SectionHeader("À propos") }
+                    item(key = "aboutHeader", contentType = "header") { SectionHeader(tr("À propos", "About")) }
                     item(key = "about", contentType = "text") { About(description) }
                 }
             }
@@ -196,12 +198,12 @@ private fun ArtistHero(state: ArtistState, route: ArtistRoute, list: LazyListSta
                     modifier = Modifier.weight(1f),
                 )
                 if (canPlay) {
-                    IconButton(AmIcons.Shuffle, label = "Lecture aléatoire", onClick = onShuffle)
+                    IconButton(AmIcons.Shuffle, label = tr("Lecture aléatoire", "Shuffle"), onClick = onShuffle)
                     Box(
                         Modifier
                             .padding(start = 4.dp)
                             .size(52.dp)
-                            .pressable(scale = 0.9f, haptic = true, label = "Lecture", onClick = onPlay)
+                            .pressable(scale = 0.9f, haptic = true, label = tr("Lecture", "Play"), onClick = onPlay)
                             .clip(CircleShape)
                             .background(colors.accent),
                         contentAlignment = Alignment.Center,
@@ -224,7 +226,7 @@ private fun About(description: String) {
         maxLines = if (expanded) Int.MAX_VALUE else 4,
         modifier = Modifier
             .padding(horizontal = 20.dp)
-            .pressable(scale = 0.99f, label = if (expanded) "Réduire" else "Lire la suite") { expanded = !expanded }
+            .pressable(scale = 0.99f, label = if (expanded) tr("Réduire", "Show less") else tr("Lire la suite", "Read more")) { expanded = !expanded }
             .animateContentSize(spring(dampingRatio = 0.9f, stiffness = 300f)),
     )
 }

@@ -1,5 +1,7 @@
 package app.ammusic.data
 
+import app.ammusic.youtube.tr
+
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -58,7 +60,7 @@ class AccountStore @Inject constructor(
 
     suspend fun signIn(session: YtSession) {
         YouTubeMusic.signIn(session)
-        val info = YouTubeMusic.account().getOrNull() ?: YtAccount("Mon compte", null, null)
+        val info = YouTubeMusic.account().getOrNull() ?: YtAccount(tr("Mon compte", "My account"), null, null)
         val saved = SavedAccount(session.cookie, session.visitorData, session.dataSyncId, info.name, info.email, info.avatar)
         prefs.edit { putString(Key, encrypt(Json.encodeToString(SavedAccount.serializer(), saved))) }
         _account.value = info

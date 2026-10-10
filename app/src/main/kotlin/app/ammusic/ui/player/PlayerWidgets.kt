@@ -1,5 +1,7 @@
 package app.ammusic.ui.player
 
+import app.ammusic.youtube.tr
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -167,7 +169,7 @@ fun HeartButton(liked: Boolean, onToggle: () -> Unit, tint: Color, likedTint: Co
         }
     }
     Box(
-        modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (liked) "Ne plus aimer" else "J'aime", onClick = onToggle),
+        modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (liked) tr("Ne plus aimer", "Unlike") else tr("J'aime", "Like"), onClick = onToggle),
         contentAlignment = Alignment.Center,
     ) {
         AmIcon(

@@ -1,5 +1,7 @@
 package app.ammusic.ui.components
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -207,7 +209,7 @@ fun Artwork(seed: Int, modifier: Modifier = Modifier, corner: Dp = 10.dp, elevat
 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, top: Dp = 32.dp, onMore: (() -> Unit)? = null) {
-    val more = if (onMore != null) Modifier.pressable(scale = 0.98f, label = "Tout voir", onClick = onMore) else Modifier
+    val more = if (onMore != null) Modifier.pressable(scale = 0.98f, label = tr("Tout voir", "See all"), onClick = onMore) else Modifier
     Row(
         modifier.fillMaxWidth().padding(top = top).then(more).padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -1,5 +1,7 @@
 package app.ammusic.ui.home
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -65,14 +67,14 @@ import app.ammusic.youtube.model.YtTrack
 fun HomeScreen(onProfile: () -> Unit, viewModel: HomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LargeTitleScreen(title = "Accueil", trailing = { ProfileButton(onProfile) }) {
+    LargeTitleScreen(title = tr("Accueil", "Home"), trailing = { ProfileButton(onProfile) }) {
         when (val current = state) {
             HomeState.Loading -> item(key = "skeleton") { HomeSkeleton() }
 
             HomeState.Error -> item(key = "error") {
                 ErrorState(
-                    title = "Accueil indisponible",
-                    message = "Vérifiez votre connexion internet, puis réessayez.",
+                    title = tr("Accueil indisponible", "Home unavailable"),
+                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
                     onRetry = viewModel::load,
                 )
             }
@@ -92,7 +94,7 @@ fun HomeScreen(onProfile: () -> Unit, viewModel: HomeViewModel = hiltViewModel()
                     }
                 }
                 if (current.moods.isNotEmpty()) {
-                    item(key = "moodsHeader", contentType = "header") { SectionHeader("Humeurs et genres") }
+                    item(key = "moodsHeader", contentType = "header") { SectionHeader(tr("Humeurs et genres", "Moods and genres")) }
                     items(current.moods.take(12).chunked(2), key = { it.first().title }, contentType = { "tiles" }) { pair ->
                         MoodRow(pair)
                     }
@@ -106,7 +108,7 @@ fun HomeScreen(onProfile: () -> Unit, viewModel: HomeViewModel = hiltViewModel()
 fun ProfileButton(onClick: () -> Unit) {
     val colors = AmTheme.colors
     val avatar = LocalAccount.current?.avatar
-    Box(Modifier.size(48.dp).pressable(scale = 0.88f, label = "Réglages", onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(48.dp).pressable(scale = 0.88f, label = tr("Réglages", "Settings"), onClick = onClick), contentAlignment = Alignment.Center) {
         if (avatar != null) {
             Cover(avatar, Modifier.size(32.dp), circle = true, requestSize = RowCoverSize)
         } else {
@@ -118,10 +120,10 @@ fun ProfileButton(onClick: () -> Unit) {
 }
 
 private fun YtItem.kind(): String = when (this) {
-    is YtTrack -> "TITRE"
+    is YtTrack -> tr("TITRE", "SONG")
     is YtAlbum -> "ALBUM"
     is YtPlaylist -> "PLAYLIST"
-    is YtArtist -> "ARTISTE"
+    is YtArtist -> tr("ARTISTE", "ARTIST")
 }
 
 @Composable

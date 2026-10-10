@@ -1,5 +1,7 @@
 package app.ammusic.ui.detail
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,22 +40,22 @@ fun BrowseScreen(viewModel: BrowseViewModel = hiltViewModel()) {
 
     LargeTitleScreen(
         title = state.title,
-        leading = { IconButton(AmIcons.ChevronLeft, label = "Retour", onClick = actions.back) },
+        leading = { IconButton(AmIcons.ChevronLeft, label = tr("Retour", "Back"), onClick = actions.back) },
     ) {
         when {
             state.status == LoadStatus.Loading -> item(key = "skeleton") { RowsSkeleton(8, Modifier.padding(top = 16.dp)) }
 
             state.status == LoadStatus.Error -> item(key = "error") {
                 ErrorState(
-                    title = "Contenu indisponible",
-                    message = "Vérifiez votre connexion internet, puis réessayez.",
+                    title = tr("Contenu indisponible", "Content unavailable"),
+                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
                     onRetry = viewModel::load,
                 )
             }
 
             sections.isEmpty() -> item(key = "empty") {
                 AmText(
-                    text = "Rien à afficher ici pour le moment.",
+                    text = tr("Rien à afficher ici pour le moment.", "Nothing to show here yet."),
                     color = AmTheme.colors.textSecondary,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 32.dp),
                 )

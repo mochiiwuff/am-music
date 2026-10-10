@@ -1,5 +1,7 @@
 package app.ammusic.ui.account
 
+import app.ammusic.youtube.tr
+
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.webkit.CookieManager
@@ -62,8 +64,8 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
 
     Column(Modifier.fillMaxSize().background(colors.background).padding(top = statusBar).navigationBarsPadding().imePadding()) {
         Box(Modifier.fillMaxWidth().height(48.dp)) {
-            IconButton(AmIcons.Close, label = "Fermer", onClick = actions.back, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
-            AmText("Connexion", style = AmTheme.type.headline, modifier = Modifier.align(Alignment.Center))
+            IconButton(AmIcons.Close, label = tr("Fermer", "Close"), onClick = actions.back, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
+            AmText(tr("Connexion", "Sign in"), style = AmTheme.type.headline, modifier = Modifier.align(Alignment.Center))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             AndroidView(
@@ -106,7 +108,7 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
                 Column(Modifier.fillMaxSize().background(colors.background)) {
                     if (arrived) {
                         AmText(
-                            text = "Connexion réussie. Récupération de votre bibliothèque…",
+                            text = tr("Connexion réussie. Récupération de votre bibliothèque…", "Signed in. Fetching your library…"),
                             color = colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
                         )

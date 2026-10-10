@@ -1,5 +1,7 @@
 package app.ammusic.ui.player
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -84,9 +86,9 @@ fun QueuePanel(
                 AmText(state.track?.title.orEmpty(), style = AmTheme.type.headline, color = Color.White, maxLines = 1)
                 AmText(state.track?.artists.orEmpty(), style = AmTheme.type.subhead, color = Soft, maxLines = 1)
             }
-            IconButton(AmIcons.ChevronDown, label = "Fermer la file d'attente", onClick = onClose, tint = Color.White)
+            IconButton(AmIcons.ChevronDown, label = tr("Fermer la file d'attente", "Close queue"), onClick = onClose, tint = Color.White)
         }
-        AmText("File d'attente", style = AmTheme.type.section, color = Color.White, modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp))
+        AmText(tr("File d'attente", "Queue"), style = AmTheme.type.section, color = Color.White, modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp))
 
         var tracks by remember { mutableStateOf(state.queue) }
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = state.index)
@@ -169,7 +171,7 @@ private fun QueueRow(
         Cover(track.thumbnail, Modifier.size(46.dp), corner = 8.dp, requestSize = 160)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             AmText(track.title, style = AmTheme.type.subhead, color = Color.White, maxLines = 1)
-            AmText(if (current) "En lecture" else track.artists, style = AmTheme.type.footnote, color = if (current) AmTheme.colors.accent else Soft, maxLines = 1)
+            AmText(if (current) tr("En lecture", "Now playing") else track.artists, style = AmTheme.type.footnote, color = if (current) AmTheme.colors.accent else Soft, maxLines = 1)
         }
         Box(handle.size(48.dp), contentAlignment = Alignment.Center) {
             AmIcon(AmIcons.Grip, tint = Soft, size = 22.dp)

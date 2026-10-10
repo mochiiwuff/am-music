@@ -1,5 +1,7 @@
 package app.ammusic.ui.detail
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,8 +89,8 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 subtitle = count(state.tracks.size),
                 thumbnail = state.thumbnail,
                 actions = listOf(
-                    MenuAction(AmIcons.Edit, "Renommer") { actions.prompt("Renommer la playlist", state.title, viewModel::rename) },
-                    MenuAction(AmIcons.Trash, "Supprimer la playlist", destructive = true) {
+                    MenuAction(AmIcons.Edit, tr("Renommer", "Rename")) { actions.prompt(tr("Renommer la playlist", "Rename playlist"), state.title, viewModel::rename) },
+                    MenuAction(AmIcons.Trash, tr("Supprimer la playlist", "Delete playlist"), destructive = true) {
                         viewModel.delete()
                         actions.back()
                     },
@@ -104,11 +106,11 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
         underStatusBar = false,
         trailing = {
             when {
-                state.editable -> IconButton(AmIcons.More, label = "Options de la playlist", onClick = playlistMenu)
+                state.editable -> IconButton(AmIcons.More, label = tr("Options de la playlist", "Playlist options"), onClick = playlistMenu)
                 state.status == LoadStatus.Ready -> SaveButton(
                     saved = route.id in savedIds,
-                    addLabel = "Ajouter à la bibliothèque",
-                    removeLabel = "Retirer de la bibliothèque",
+                    addLabel = tr("Ajouter à la bibliothèque", "Add to library"),
+                    removeLabel = tr("Retirer de la bibliothèque", "Remove from library"),
                     onToggle = viewModel::toggleSaved,
                 )
             }
@@ -129,8 +131,8 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
 
             LoadStatus.Error -> item(key = "error") {
                 ErrorState(
-                    title = if (state.isAlbum) "Album indisponible" else "Playlist indisponible",
-                    message = "Vérifiez votre connexion internet, puis réessayez.",
+                    title = if (state.isAlbum) tr("Album indisponible", "Album unavailable") else tr("Playlist indisponible", "Playlist unavailable"),
+                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
                     onRetry = viewModel::load,
                 )
             }
@@ -162,7 +164,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                             item = track,
                             origin = origin,
                             extras = if (state.editable) {
-                                listOf(MenuAction(AmIcons.Remove, "Retirer de la playlist", destructive = true) { viewModel.remove(track) })
+                                listOf(MenuAction(AmIcons.Remove, tr("Retirer de la playlist", "Remove from playlist"), destructive = true) { viewModel.remove(track) })
                             } else {
                                 emptyList()
                             },
@@ -174,7 +176,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 item(key = "footer", contentType = "text") {
                     AmText(
                         text = if (state.tracks.isEmpty() && state.editable) {
-                            "Cette playlist est vide. Ajoutez-y des titres avec leur menu « ⋯ »."
+                            tr("Cette playlist est vide. Ajoutez-y des titres avec leur menu « ⋯ ».", "This playlist is empty. Add songs from their “⋯” menu.")
                         } else {
                             summary(state.tracks)
                         },
@@ -184,7 +186,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                     )
                 }
                 if (state.otherVersions.isNotEmpty()) {
-                    item(key = "othersHeader", contentType = "header") { SectionHeader("Autres versions", top = 12.dp) }
+                    item(key = "othersHeader", contentType = "header") { SectionHeader(tr("Autres versions", "Other versions"), top = 12.dp) }
                     item(key = "others", contentType = "carousel") { ItemCarousel(state.otherVersions, origin) }
                 }
             }
@@ -192,7 +194,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
     }
 }
 
-private fun count(tracks: Int) = if (tracks > 1) "$tracks titres" else "$tracks titre"
+private fun count(tracks: Int) = if (tracks > 1) tr("$tracks titres", "$tracks songs") else tr("$tracks titre", "$tracks song")
 
 private fun summary(tracks: List<YtTrack>): String {
     val seconds = tracks.sumOf { it.durationSeconds ?: return count(tracks.size) }
@@ -233,7 +235,7 @@ private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tin
         AmText(state.title, style = AmTheme.type.section, textAlign = TextAlign.Center, maxLines = 3)
         if (state.subtitle.isNotBlank()) {
             val open = if (artistId != null) {
-                Modifier.pressable(scale = 0.97f, label = "Voir l'artiste") { actions.openArtist(artistId, state.subtitle) }
+                Modifier.pressable(scale = 0.97f, label = tr("Voir l'artiste", "Go to artist")) { actions.openArtist(artistId, state.subtitle) }
             } else {
                 Modifier
             }
@@ -255,8 +257,8 @@ private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tin
         Spacer(Modifier.height(22.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val ready = state.tracks.isNotEmpty()
-            PillButton("Lecture", AmIcons.Play, filled = true, enabled = ready, onClick = onPlay, modifier = Modifier.weight(1f))
-            PillButton("Aléatoire", AmIcons.Shuffle, filled = false, enabled = ready, onClick = onShuffle, modifier = Modifier.weight(1f))
+            PillButton(tr("Lecture", "Play"), AmIcons.Play, filled = true, enabled = ready, onClick = onPlay, modifier = Modifier.weight(1f))
+            PillButton(tr("Aléatoire", "Shuffle"), AmIcons.Shuffle, filled = false, enabled = ready, onClick = onShuffle, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
     }
@@ -291,6 +293,6 @@ private fun AlbumTrackRow(index: Int, track: YtTrack, showArtists: Boolean, onCl
             AmText(track.title, style = AmTheme.type.body.copy(fontSize = 16.sp), color = if (current) colors.accent else colors.text, maxLines = 1)
             if (showArtists) AmText(track.artists, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
-        IconButton(AmIcons.More, label = "Plus d'options", onClick = { actions.menu(track, emptyList()) }, tint = colors.textSecondary, iconSize = 20.dp)
+        IconButton(AmIcons.More, label = tr("Plus d'options", "More options"), onClick = { actions.menu(track, emptyList()) }, tint = colors.textSecondary, iconSize = 20.dp)
     }
 }

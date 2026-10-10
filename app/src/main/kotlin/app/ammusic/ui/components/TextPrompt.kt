@@ -1,5 +1,7 @@
 package app.ammusic.ui.components
 
+import app.ammusic.youtube.tr
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -118,16 +120,16 @@ fun TextPrompt(request: PromptRequest?, onDismiss: () -> Unit) {
             }
             Row(Modifier.padding(top = 8.dp).fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 AmText(
-                    text = "Annuler",
+                    text = tr("Annuler", "Cancel"),
                     style = AmTheme.type.headline,
                     color = colors.textSecondary,
-                    modifier = Modifier.pressable(label = "Annuler", onClick = onDismiss).padding(horizontal = 14.dp, vertical = 14.dp),
+                    modifier = Modifier.pressable(label = tr("Annuler", "Cancel"), onClick = onDismiss).padding(horizontal = 14.dp, vertical = 14.dp),
                 )
                 AmText(
                     text = "OK",
                     style = AmTheme.type.headline,
                     color = if (valid) colors.accent else colors.textTertiary,
-                    modifier = Modifier.pressable(haptic = true, label = "Valider", onClick = confirm).padding(horizontal = 14.dp, vertical = 14.dp),
+                    modifier = Modifier.pressable(haptic = true, label = tr("Valider", "Confirm"), onClick = confirm).padding(horizontal = 14.dp, vertical = 14.dp),
                 )
             }
         }

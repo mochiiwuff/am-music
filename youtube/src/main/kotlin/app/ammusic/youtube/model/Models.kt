@@ -1,5 +1,7 @@
 package app.ammusic.youtube.model
 
+import app.ammusic.youtube.tr
+
 sealed interface YtItem {
     val id: String
     val title: String
@@ -51,7 +53,7 @@ data class YtArtist(
     override val title: String,
     override val thumbnail: String?,
 ) : YtItem {
-    override val subtitle get() = "Artiste"
+    override val subtitle get() = tr("Artiste", "Artist")
     override val key get() = "r:$id"
 }
 

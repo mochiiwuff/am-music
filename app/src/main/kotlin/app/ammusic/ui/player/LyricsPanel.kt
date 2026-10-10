@@ -1,5 +1,7 @@
 package app.ammusic.ui.player
 
+import app.ammusic.youtube.tr
+
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
@@ -101,7 +103,7 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
                 AmText(state.track?.title.orEmpty(), style = AmTheme.type.headline, color = Color.White, maxLines = 1)
                 AmText(state.track?.artists.orEmpty(), style = AmTheme.type.subhead, color = Soft, maxLines = 1)
             }
-            IconButton(AmIcons.ChevronDown, label = "Fermer les paroles", onClick = onClose, tint = Color.White)
+            IconButton(AmIcons.ChevronDown, label = tr("Fermer les paroles", "Close lyrics"), onClick = onClose, tint = Color.White)
         }
 
         Box(Modifier.weight(1f).fillMaxWidth().fadedEdges()) {
@@ -109,19 +111,19 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
                 null -> LyricsSkeleton()
                 is Lyrics.Synced -> SyncedLyrics(current.lines, player)
                 is Lyrics.Plain -> PlainLyrics(current.text)
-                Lyrics.None -> Message("Pas de paroles trouvées pour ce titre.")
+                Lyrics.None -> Message(tr("Pas de paroles trouvées pour ce titre.", "No lyrics found for this song."))
             }
         }
 
         Row(Modifier.fillMaxWidth().height(84.dp), Arrangement.Center, Alignment.CenterVertically) {
-            IconButton(AmIcons.Previous, label = "Titre précédent", onClick = player::previous, tint = Color.White, iconSize = 30.dp)
+            IconButton(AmIcons.Previous, label = tr("Titre précédent", "Previous song"), onClick = player::previous, tint = Color.White, iconSize = 30.dp)
             Box(
-                Modifier.padding(horizontal = 28.dp).size(64.dp).pressable(scale = 0.86f, haptic = true, label = "Lecture ou pause", onClick = player::toggle),
+                Modifier.padding(horizontal = 28.dp).size(64.dp).pressable(scale = 0.86f, haptic = true, label = tr("Lecture ou pause", "Play or pause"), onClick = player::toggle),
                 contentAlignment = Alignment.Center,
             ) {
                 PlayPauseIcon(playing = state.isPlaying || state.isLoading, color = Color.White, size = 34.dp)
             }
-            IconButton(AmIcons.Next, label = "Titre suivant", onClick = player::next, tint = if (state.hasNext) Color.White else Soft, iconSize = 30.dp)
+            IconButton(AmIcons.Next, label = tr("Titre suivant", "Next song"), onClick = player::next, tint = if (state.hasNext) Color.White else Soft, iconSize = 30.dp)
         }
     }
 }
@@ -196,7 +198,7 @@ private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onCli
     Box(
         Modifier
             .fillMaxWidth()
-            .pressable(scale = 0.98f, label = "Aller à ce passage", onClick = onClick)
+            .pressable(scale = 0.98f, label = tr("Aller à ce passage", "Jump to this line"), onClick = onClick)
             .padding(vertical = 10.dp)
             .graphicsLayer {
                 alpha = light
@@ -226,7 +228,7 @@ private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onCli
 @Composable
 private fun PlainLyrics(text: String) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 96.dp)) {
-        AmText("Paroles non synchronisées", style = AmTheme.type.caption, color = Soft, modifier = Modifier.padding(bottom = 16.dp))
+        AmText(tr("Paroles non synchronisées", "Unsynced lyrics"), style = AmTheme.type.caption, color = Soft, modifier = Modifier.padding(bottom = 16.dp))
         AmText(text, style = AmTheme.type.section.copy(lineHeight = 32.sp), color = Color.White.copy(alpha = 0.9f))
     }
 }
