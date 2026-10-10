@@ -57,6 +57,38 @@ object AmIcons {
         icon("Next", Part("M4.2 7.4 L11.4 12 L4.2 16.6 Z", fill = true, stroke = 1.8f), Part("M12.8 7.4 L20 12 L12.8 16.6 Z", fill = true, stroke = 1.8f))
     }
 
+    val Previous by lazy {
+        icon("Previous", Part("M19.8 7.4 L12.6 12 L19.8 16.6 Z", fill = true, stroke = 1.8f), Part("M11.2 7.4 L4 12 L11.2 16.6 Z", fill = true, stroke = 1.8f))
+    }
+    val Shuffle by lazy {
+        icon(
+            "Shuffle",
+            Part("M4 7.5 H7.2 C9.6 7.5 10.6 9 12 12 C13.4 15 14.4 16.5 16.8 16.5 H20"),
+            Part("M4 16.5 H7.2 C8.6 16.5 9.5 15.9 10.3 14.8"),
+            Part("M13.7 9.2 C14.5 8.1 15.4 7.5 16.8 7.5 H20"),
+            Part("M17.7 5 L20.2 7.5 L17.7 10"),
+            Part("M17.7 14 L20.2 16.5 L17.7 19"),
+        )
+    }
+    private const val Loop = "M4 11.6 V10 A3.2 3.2 0 0 1 7.2 6.8 H20 M20 12.4 V14 A3.2 3.2 0 0 1 16.8 17.2 H4"
+    private const val LoopArrows = "M17.2 4 L20 6.8 L17.2 9.6 M6.8 20 L4 17.2 L6.8 14.4"
+    val Repeat by lazy { icon("Repeat", Part(Loop), Part(LoopArrows)) }
+    val RepeatOne by lazy { icon("RepeatOne", Part(Loop), Part(LoopArrows), Part("M11.2 10.7 L12.5 9.9 V14.3", stroke = 1.5f)) }
+    val Queue by lazy {
+        icon("Queue", Part("M4 6.5 H20"), Part("M4 11.5 H11.5"), Part("M4 16.5 H11.5"), Part("M15.4 11.6 L20.4 14.5 L15.4 17.4 Z", fill = true, stroke = 1.4f))
+    }
+    val VolumeLow by lazy { icon("VolumeLow", Part("M7 10 H9.6 L13.4 6.8 V17.2 L9.6 14 H7 Z", fill = true, stroke = 1.4f)) }
+    val VolumeHigh by lazy {
+        icon(
+            "VolumeHigh",
+            Part("M3.6 10 H6.2 L10 6.8 V17.2 L6.2 14 H3.6 Z", fill = true, stroke = 1.4f),
+            Part("M13.6 9.3 A3.8 3.8 0 0 1 13.6 14.7"),
+            Part("M16.2 6.8 A7.2 7.2 0 0 1 16.2 17.2"),
+        )
+    }
+    val Grip by lazy { icon("Grip", Part("M5 9.5 H19"), Part("M5 14.5 H19")) }
+    val ChevronDown by lazy { icon("ChevronDown", Part("M6 9.5 L12 15.5 L18 9.5", stroke = 2f)) }
+
     val Heart by lazy { icon("Heart", Part(HeartShape)) }
     val HeartFilled by lazy { icon("HeartFilled", Part(HeartShape, fill = true)) }
     val More by lazy {

@@ -48,8 +48,10 @@ fun Cover(
     requestSize: Int = 400,
     elevated: Boolean = false,
     circle: Boolean = false,
+    placeholder: Boolean = true,
 ) {
     val shape: Shape = if (circle) CircleShape else RoundedCornerShape(corner)
+    val fill = if (placeholder) Modifier.background(AmTheme.colors.surface) else Modifier
     val shadow = if (elevated) {
         Modifier.shadow(14.dp, shape, ambientColor = Color(0x40000000), spotColor = Color(0x59000000))
     } else {
@@ -59,7 +61,7 @@ fun Cover(
         model = url?.thumbnailAt(requestSize),
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = modifier.then(shadow).clip(shape).background(AmTheme.colors.surface),
+        modifier = modifier.then(shadow).clip(shape).then(fill),
     )
 }
 

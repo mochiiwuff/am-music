@@ -25,7 +25,14 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import app.ammusic.playback.PlayerState
+import app.ammusic.ui.player.PlayPauseIcon
+import app.ammusic.ui.player.PlayerSheetState
 import app.ammusic.ui.theme.AmTheme
 
 enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
@@ -52,6 +59,7 @@ fun FloatingBars(
     collapsed: Boolean,
     onExpand: () -> Unit,
     player: PlayerState,
+    sheet: PlayerSheetState,
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
@@ -64,7 +72,7 @@ fun FloatingBars(
     Layout(
         content = {
             TabBar(current, onSelect, collapsed, { progress.value }, onExpand)
-            MiniPlayer(player, onTogglePlay, onNext)
+            MiniPlayer(player, sheet, onTogglePlay, onNext)
         },
         modifier = modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
     ) { measurables, constraints ->
@@ -142,15 +150,35 @@ private fun TabBar(
 }
 
 @Composable
-private fun MiniPlayer(player: PlayerState, onTogglePlay: () -> Unit, onNext: () -> Unit) {
+private fun MiniPlayer(player: PlayerState, sheet: PlayerSheetState, onTogglePlay: () -> Unit, onNext: () -> Unit) {
     val colors = AmTheme.colors
     val track = player.track
     val active = player.isPlaying || player.isLoading
     Row(
-        modifier = Modifier.fillMaxSize().glass(CircleShape).padding(start = 8.dp, end = 4.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { sheet.miniBounds = it.boundsInRoot() }
+            .glass(CircleShape)
+            .draggable(
+                state = rememberDraggableState { sheet.dragBy(-it) },
+                orientation = Orientation.Vertical,
+                enabled = track != null,
+                onDragStopped = { sheet.settle(-it) },
+            )
+            .pressable(scale = 0.985f, label = "Ouvrir le lecteur") { if (track != null) sheet.expand() }
+            .padding(start = 8.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(track?.thumbnail, Modifier.size(40.dp), requestSize = 160, circle = true)
+        // Dès que le lecteur s'ouvre, c'est la pochette voyageuse de PlayerSheet qui prend le relais.
+        Cover(
+            url = track?.thumbnail,
+            modifier = Modifier
+                .size(40.dp)
+                .onGloballyPositioned { sheet.miniArtBounds = it.boundsInRoot() }
+                .graphicsLayer { alpha = if (sheet.progress.value > 0f) 0f else 1f },
+            requestSize = 160,
+            circle = true,
+        )
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             AmText(track?.title ?: "Aucune lecture en cours", style = AmTheme.type.subhead, maxLines = 1)
             val subtitle = when {
@@ -162,11 +190,12 @@ private fun MiniPlayer(player: PlayerState, onTogglePlay: () -> Unit, onNext: ()
             AmText(subtitle, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
         if (track != null) {
-            IconButton(
-                icon = if (active) AmIcons.Pause else AmIcons.Play,
-                label = if (active) "Pause" else "Lecture",
-                onClick = onTogglePlay,
-            )
+            Box(
+                Modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (active) "Pause" else "Lecture", onClick = onTogglePlay),
+                contentAlignment = Alignment.Center,
+            ) {
+                PlayPauseIcon(playing = active, color = colors.text, size = 26.dp)
+            }
             IconButton(
                 icon = AmIcons.Next,
                 label = "Titre suivant",

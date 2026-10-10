@@ -50,6 +50,8 @@ dependencies {
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.androidx.palette)
+    implementation(libs.reorderable)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

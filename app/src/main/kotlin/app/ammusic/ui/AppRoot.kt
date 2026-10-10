@@ -33,6 +33,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.platform.LocalWindowInfo
+import app.ammusic.ui.player.PlayerSheet
+import app.ammusic.ui.player.rememberPlayerSheetState
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.ammusic.ui.components.FloatingBars
@@ -91,6 +94,8 @@ fun AppRoot(
     var collapsed by remember { mutableStateOf(false) }
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val player by playerViewModel.state.collectAsStateWithLifecycle()
+    val sheet = rememberPlayerSheetState()
+    sheet.travelPx = LocalWindowInfo.current.containerSize.height * 0.8f
     val scroll = remember { BarsScrollConnection { collapsed = it } }
 
     LaunchedEffect(entry) {
@@ -138,10 +143,13 @@ fun AppRoot(
                 collapsed = collapsed,
                 onExpand = { collapsed = false },
                 player = player,
+                sheet = sheet,
                 onTogglePlay = playerViewModel::toggle,
                 onNext = playerViewModel::next,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+
+            if (sheet.isOpen) PlayerSheet(sheet, player, playerViewModel)
         }
     }
 }

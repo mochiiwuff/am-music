@@ -26,9 +26,27 @@ class PlayerViewModel @Inject constructor(private val controller: PlayerControll
 
     fun play(track: YtTrack) = controller.play(track)
 
+    val positionMs: Long get() = controller.positionMs
+
     fun toggle() = controller.toggle()
 
     fun next() = controller.next()
+
+    fun previous() = controller.previous()
+
+    fun seekTo(positionMs: Long) = controller.seekTo(positionMs)
+
+    fun playAt(index: Int) = controller.playAt(index)
+
+    fun move(from: Int, to: Int) = controller.move(from, to)
+
+    fun remove(index: Int) = controller.remove(index)
+
+    fun toggleShuffle() = controller.toggleShuffle()
+
+    fun cycleRepeat() = controller.cycleRepeat()
+
+    fun toggleLike() = controller.toggleLike()
 }
 
 sealed interface HomeState {

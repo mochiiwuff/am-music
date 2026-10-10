@@ -3,6 +3,7 @@ package app.ammusic.playback
 import android.content.ComponentName
 import android.content.Context
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -29,15 +30,23 @@ import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+enum class RepeatMode { Off, All, One }
+
 data class PlayerState(
     val track: YtTrack? = null,
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
     val hasNext: Boolean = false,
     val failed: Boolean = false,
+    val durationMs: Long = 0L,
+    val queue: List<YtTrack> = emptyList(),
+    val index: Int = 0,
+    val shuffle: Boolean = false,
+    val repeat: RepeatMode = RepeatMode.Off,
+    val liked: Boolean = false,
 )
 
-/** Pont entre l'interface et [PlaybackService]. */
+/** Pont entre l'interface et [PlaybackService]. Un titre n'apparaît qu'une fois dans la file. */
 @Singleton
 class PlayerController @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -48,43 +57,87 @@ class PlayerController @Inject constructor(
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private var connection: Deferred<MediaController>? = null
+    private var player: MediaController? = null
     private var radio: Job? = null
+    private val liked = HashSet<String>()
+
+    /** Position de lecture actuelle, à lire depuis l'interface (elle change en continu). */
+    val positionMs: Long get() = player?.currentPosition ?: 0L
 
     init {
         scope.launch { runCatching { controller() } }
     }
 
-    /** Lance [track], puis complète la file avec la radio YouTube Music de ce titre. */
-    fun play(track: YtTrack) {
-        scope.launch {
-            val player = controller()
-            radio?.cancel()
-            player.setMediaItem(track.toMediaItem())
+    /** Lance [track] ; la radio YouTube Music de ce titre complète ensuite la file, sans fin. */
+    fun play(track: YtTrack) = withPlayer { player ->
+        radio?.cancel()
+        player.setMediaItem(track.toMediaItem())
+        player.prepare()
+        player.play()
+        extendQueue(player)
+    }
+
+    fun toggle() = withPlayer { player ->
+        when {
+            player.isPlaying -> player.pause()
+            player.playerError != null || player.playbackState == Player.STATE_IDLE -> {
+                player.prepare()
+                player.play()
+            }
+            else -> player.play()
+        }
+    }
+
+    fun next() = withPlayer { it.seekToNextMediaItem() }
+
+    /** Revient au début du titre, ou au titre précédent si on est dans les premières secondes. */
+    fun previous() = withPlayer { it.seekToPrevious() }
+
+    fun seekTo(positionMs: Long) = withPlayer { it.seekTo(positionMs) }
+
+    fun playAt(index: Int) = withPlayer { player ->
+        if (index in 0 until player.mediaItemCount) {
+            player.seekToDefaultPosition(index)
             player.prepare()
             player.play()
-            radio = launch {
-                val next = repository.radio(track.id).getOrNull().orEmpty().filter { it.id != track.id }
-                if (player.currentMediaItem?.mediaId == track.id) player.addMediaItems(next.map { it.toMediaItem() })
-            }
         }
     }
 
-    fun toggle() {
-        scope.launch {
-            val player = controller()
-            when {
-                player.isPlaying -> player.pause()
-                player.playerError != null || player.playbackState == Player.STATE_IDLE -> {
-                    player.prepare()
-                    player.play()
-                }
-                else -> player.play()
-            }
+    fun move(from: Int, to: Int) = withPlayer { it.moveMediaItem(from, to) }
+
+    fun remove(index: Int) = withPlayer { it.removeMediaItem(index) }
+
+    fun toggleShuffle() = withPlayer { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+
+    fun cycleRepeat() = withPlayer { player ->
+        player.repeatMode = when (player.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
         }
     }
 
-    fun next() {
-        scope.launch { controller().seekToNextMediaItem() }
+    /** « J'aime » gardé en mémoire seulement : la vraie bibliothèque arrive en phase 5. */
+    fun toggleLike() = withPlayer { player ->
+        val id = player.currentMediaItem?.mediaId ?: return@withPlayer
+        if (!liked.add(id)) liked.remove(id)
+        publish(player)
+    }
+
+    private fun withPlayer(block: (MediaController) -> Unit) {
+        scope.launch { block(controller()) }
+    }
+
+    /** Quand il reste peu de titres devant, ajoute la suite de la radio du dernier titre de la file. */
+    private fun extendQueue(player: MediaController) {
+        if (radio?.isActive == true || player.mediaItemCount == 0) return
+        if (player.mediaItemCount - player.currentMediaItemIndex > 3) return
+        val seed = player.getMediaItemAt(player.mediaItemCount - 1).mediaId
+        radio = scope.launch {
+            val known = (0 until player.mediaItemCount).mapTo(HashSet()) { player.getMediaItemAt(it).mediaId }
+            val more = repository.radio(seed).getOrNull().orEmpty().filter { known.add(it.id) }
+            if (more.isNotEmpty()) player.addMediaItems(more.map { it.toMediaItem() })
+        }
     }
 
     private suspend fun controller(): MediaController {
@@ -98,8 +151,12 @@ class PlayerController @Inject constructor(
                 )
             }
             controller.addListener(object : Player.Listener {
-                override fun onEvents(player: Player, events: Player.Events) = publish(player)
+                override fun onEvents(player: Player, events: Player.Events) {
+                    publish(player)
+                    if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) extendQueue(controller)
+                }
             })
+            player = controller
             publish(controller)
             controller
         }.also { connection = it }
@@ -112,23 +169,35 @@ class PlayerController @Inject constructor(
     }
 
     private fun publish(player: Player) {
-        val item = player.currentMediaItem
+        val queue = List(player.mediaItemCount) { player.getMediaItemAt(it).toTrack() }
+        val current = player.currentMediaItem?.toTrack()
         _state.value = PlayerState(
-            track = item?.let {
-                YtTrack(
-                    id = it.mediaId,
-                    title = it.mediaMetadata.title?.toString().orEmpty(),
-                    artists = it.mediaMetadata.artist?.toString().orEmpty(),
-                    thumbnail = it.mediaMetadata.artworkUri?.toString(),
-                )
-            },
+            track = current,
             isPlaying = player.isPlaying,
             isLoading = player.playWhenReady && player.playbackState == Player.STATE_BUFFERING,
             hasNext = player.hasNextMediaItem(),
             failed = player.playerError != null,
+            durationMs = player.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L,
+            queue = queue,
+            index = player.currentMediaItemIndex,
+            shuffle = player.shuffleModeEnabled,
+            repeat = when (player.repeatMode) {
+                Player.REPEAT_MODE_ALL -> RepeatMode.All
+                Player.REPEAT_MODE_ONE -> RepeatMode.One
+                else -> RepeatMode.Off
+            },
+            liked = current?.id in liked,
         )
     }
 }
+
+private fun MediaItem.toTrack() = YtTrack(
+    id = mediaId,
+    title = mediaMetadata.title?.toString().orEmpty(),
+    artists = mediaMetadata.artist?.toString().orEmpty(),
+    album = mediaMetadata.albumTitle?.toString(),
+    thumbnail = mediaMetadata.artworkUri?.toString(),
+)
 
 private fun YtTrack.toMediaItem(): MediaItem = MediaItem.Builder()
     .setMediaId(id)
