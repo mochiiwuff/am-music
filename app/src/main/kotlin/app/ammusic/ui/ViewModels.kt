@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import app.ammusic.data.AccountStore
 import app.ammusic.data.MusicRepository
 import app.ammusic.data.SearchHistory
+import app.ammusic.data.lyrics.Lyrics
+import app.ammusic.data.lyrics.LyricsRepository
 import app.ammusic.playback.PlayerController
 import app.ammusic.youtube.model.YtItem
 import app.ammusic.youtube.model.YtMood
@@ -22,14 +24,39 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @HiltViewModel
-class PlayerViewModel @Inject constructor(private val controller: PlayerController) : ViewModel() {
+class PlayerViewModel @Inject constructor(
+    private val controller: PlayerController,
+    private val lyricsRepository: LyricsRepository,
+) : ViewModel() {
     val state = controller.state
+
+    /** Paroles du titre en cours ; `null` pendant la recherche. */
+    private val _lyrics = MutableStateFlow<Lyrics?>(null)
+    val lyrics: StateFlow<Lyrics?> = _lyrics.asStateFlow()
+    private var lyricsFor: String? = null
+    private var lyricsJob: Job? = null
+
+    /** Cherche les paroles du titre en cours (appelé quand le panneau des paroles est ouvert, à chaque changement de titre). */
+    fun loadLyrics() {
+        val track = state.value.track ?: return
+        if (lyricsFor == track.id) return
+        lyricsFor = track.id
+        _lyrics.value = null
+        lyricsJob?.cancel()
+        lyricsJob = viewModelScope.launch {
+            // La durée aide à trouver la bonne version : on l'attend un instant si le titre vient de démarrer.
+            val duration = withTimeoutOrNull(3_000) { state.first { it.track?.id == track.id && it.durationMs > 0 }.durationMs } ?: 0L
+            _lyrics.value = lyricsRepository.find(track, duration)
+        }
+    }
 
     fun play(track: YtTrack) = controller.play(track)
 

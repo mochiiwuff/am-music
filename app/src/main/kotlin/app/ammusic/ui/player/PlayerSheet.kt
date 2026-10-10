@@ -79,6 +79,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -132,15 +133,22 @@ fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewM
     val density = LocalDensity.current
     val colors = rememberPlayerColors(track.thumbnail)
     val queue = remember { Animatable(0f) }
+    val lyrics = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     PredictiveBackHandler { events ->
         val queueOpen = queue.targetValue > 0f
+        val lyricsOpen = lyrics.targetValue > 0f
+        val panelOpen = queueOpen || lyricsOpen
         try {
-            events.collect { if (!queueOpen) sheet.progress.snapTo(1f - it.progress * 0.18f) }
-            if (queueOpen) queue.animateTo(0f, PanelSpring) else sheet.collapse()
+            events.collect { if (!panelOpen) sheet.progress.snapTo(1f - it.progress * 0.18f) }
+            when {
+                lyricsOpen -> lyrics.animateTo(0f, PanelSpring)
+                queueOpen -> queue.animateTo(0f, PanelSpring)
+                else -> sheet.collapse()
+            }
         } catch (_: CancellationException) {
-            if (!queueOpen) sheet.expand()
+            if (!panelOpen) sheet.expand()
         }
     }
     LightSystemBars(sheet)
@@ -195,6 +203,8 @@ fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewM
                     artSpace = with(density) { artSize.toDp() },
                     onCollapse = sheet::collapse,
                     onQueue = { scope.launch { queue.animateTo(1f, PanelSpring) } },
+                    onLyrics = { scope.launch { lyrics.animateTo(1f, PanelSpring) } },
+                    fade = { lyrics.value },
                 )
                 QueuePanel(
                     progress = { queue.value },
@@ -206,12 +216,19 @@ fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewM
                     onMove = player::move,
                     onRemove = player::remove,
                 )
+                LyricsPanel(
+                    progress = { lyrics.value },
+                    top = with(density) { queueTop.toDp() },
+                    state = state,
+                    player = player,
+                    onClose = { scope.launch { lyrics.animateTo(0f, PanelSpring) } },
+                )
             }
         }
 
         SharedArtwork(
             sheet = sheet,
-            queue = { queue.value },
+            queue = { max(queue.value, lyrics.value) },
             track = track,
             playing = state.isPlaying || state.isLoading,
             fullArt = fullArt,
@@ -250,6 +267,8 @@ private fun PlayerContent(
     artSpace: Dp,
     onCollapse: () -> Unit,
     onQueue: () -> Unit,
+    onLyrics: () -> Unit,
+    fade: () -> Float,
 ) {
     val accent = AmTheme.colors.accent
     val active = state.isPlaying || state.isLoading
@@ -262,7 +281,11 @@ private fun PlayerContent(
         }
         Spacer(Modifier.height(12.dp + artSpace))
 
-        Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.SpaceEvenly) {
+        // Les commandes s'effacent quand les paroles prennent leur place.
+        Column(
+            Modifier.weight(1f).fillMaxWidth().graphicsLayer { alpha = 1f - fade().coerceIn(0f, 1f) },
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     AmText(track.title, style = AmTheme.type.section, color = Color.White, maxLines = 1)
@@ -297,6 +320,7 @@ private fun PlayerContent(
 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
                 ToggleButton(AmIcons.Shuffle, "Lecture aléatoire", state.shuffle, player::toggleShuffle)
+                ToggleButton(AmIcons.Lyrics, "Paroles", false, onLyrics)
                 ToggleButton(AmIcons.Queue, "File d'attente", false, onQueue)
                 ToggleButton(
                     icon = if (state.repeat == RepeatMode.One) AmIcons.RepeatOne else AmIcons.Repeat,

@@ -141,6 +141,18 @@ object AmIcons {
         )
     }
     val Remove by lazy { icon("Remove", Part(circle(12f, 12f, 8.5f)), Part("M8.5 12 H15.5")) }
+    /** Paroles : un guillemet ouvrant, puis deux lignes de texte. */
+    val Lyrics by lazy {
+        icon(
+            "Lyrics",
+            Part(circle(6.3f, 9f, 1.8f), fill = true, stroke = 0f),
+            Part("M4.5 9 C4.5 6.7 5.6 5.2 7.7 4.6"),
+            Part(circle(12.1f, 9f, 1.8f), fill = true, stroke = 0f),
+            Part("M10.3 9 C10.3 6.7 11.4 5.2 13.5 4.6"),
+            Part("M4.5 14.6 H19.5"),
+            Part("M4.5 18.8 H14.5"),
+        )
+    }
     val Share by lazy {
         icon(
             "Share",
