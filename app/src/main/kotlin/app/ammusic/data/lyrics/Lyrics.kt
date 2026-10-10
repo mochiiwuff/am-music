@@ -101,3 +101,29 @@ fun parseTtml(ttml: String): List<LyricLine> = runCatching {
     }
     lines.sortedBy { it.startMs }
 }.onFailure { Log.w("AmLyrics", "TTML illisible : $it") }.getOrDefault(emptyList())
+
+private fun String.plain(): String = lowercase().filter { it.isLetterOrDigit() }
+
+/**
+ * Recale des paroles « mot à mot » ([detailed]) sur des paroles de référence ([reference]) : on retrouve les lignes
+ * communes, dans l'ordre, et on mesure leur écart. Si l'écart est le même partout (à une demi-seconde près),
+ * tout est décalé d'autant ; sinon c'est une autre version du titre, et on renonce (`null`).
+ */
+fun alignTo(reference: List<LyricLine>, detailed: List<LyricLine>): List<LyricLine>? {
+    val gaps = ArrayList<Long>()
+    var from = 0
+    for (line in detailed) {
+        val text = line.text.plain()
+        if (text.length < 4) continue
+        // La même phrase revient souvent (refrain) : on ne cherche que dans les quelques lignes qui suivent la dernière trouvée.
+        val index = (from until minOf(from + 8, reference.size)).firstOrNull { reference[it].text.plain() == text } ?: continue
+        gaps += reference[index].startMs - line.startMs
+        from = index + 1
+    }
+    if (gaps.size < maxOf(4, reference.size / 4)) return null
+    val shift = gaps.sorted()[gaps.size / 2]
+    if (gaps.count { kotlin.math.abs(it - shift) <= 500 } < gaps.size * 0.7) return null
+    return detailed.map { line ->
+        line.copy(startMs = line.startMs + shift, words = line.words.map { it.copy(startMs = it.startMs + shift, endMs = it.endMs + shift) })
+    }
+}

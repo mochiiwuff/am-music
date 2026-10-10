@@ -3,6 +3,8 @@ package app.ammusic.data.lyrics
 import android.util.Log
 import app.ammusic.youtube.model.YtTrack
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -64,10 +66,20 @@ class LyricsRepository @Inject constructor() {
         val artist = track.artists.substringBefore(", ")
         val seconds = (durationMs / 1000).toInt()
 
-        val found = lyricsPlus(title, artist, track.album, seconds)
-            ?: betterLyrics(title, artist, track.album, seconds)
-            ?: lrcLib(title, artist, track.album, seconds)
-            ?: Lyrics.None
+        // LRCLIB donne le calage de référence (le mieux accordé à ce que joue YouTube Music) ; les sources « mot à mot »
+        // viennent souvent d'une autre version du titre, décalée : on ne les garde que recalées sur LRCLIB.
+        val (reference, detailed) = coroutineScope {
+            val reference = async { lrcLib(title, artist, track.album, seconds) }
+            val detailed = async { lyricsPlus(title, artist, track.album, seconds) ?: betterLyrics(title, artist, track.album, seconds) }
+            reference.await() to detailed.await()
+        }
+        val found = when {
+            reference is Lyrics.Synced && detailed != null && detailed.lines.any { it.words.isNotEmpty() } ->
+                alignTo(reference.lines, detailed.lines)?.let(Lyrics::Synced) ?: reference
+            reference is Lyrics.Synced -> reference
+            detailed != null -> detailed
+            else -> reference ?: Lyrics.None
+        }
         val detail = when (found) {
             is Lyrics.Synced -> if (found.lines.any { it.words.isNotEmpty() }) "mot à mot" else "ligne par ligne"
             is Lyrics.Plain -> "texte seul"
@@ -80,7 +92,7 @@ class LyricsRepository @Inject constructor() {
     }
 
     /** LyricsPlus : mot à mot pour les titres connus, ligne par ligne sinon. Deux serveurs, essayés dans l'ordre. */
-    private fun lyricsPlus(title: String, artist: String, album: String?, seconds: Int): Lyrics? {
+    private fun lyricsPlus(title: String, artist: String, album: String?, seconds: Int): Lyrics.Synced? {
         for (server in LyricsPlusServers) {
             val url = "$server/v2/lyrics/get".toHttpUrl().newBuilder()
                 .addQueryParameter("title", title)
@@ -101,7 +113,7 @@ class LyricsRepository @Inject constructor() {
     }
 
     /** BetterLyrics : mot à mot, mais sans clé il ne sert que les titres qu'il a déjà en réserve (sinon réponse 401). */
-    private fun betterLyrics(title: String, artist: String, album: String?, seconds: Int): Lyrics? {
+    private fun betterLyrics(title: String, artist: String, album: String?, seconds: Int): Lyrics.Synced? {
         val url = "https://lyrics-api.boidu.dev/getLyrics".toHttpUrl().newBuilder()
             .addQueryParameter("s", title)
             .addQueryParameter("a", artist)
