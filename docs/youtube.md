@@ -32,6 +32,9 @@ Réglages repris de Metrolist (`InnerTubeXPlayer.kt`) : `allowSabr = false`, `al
 (qui enchaîne PipePipe local → PipePipe via serveur → BravePipe, avec un test HEAD de l'URL).
 Utilisé seulement si `innertubex` ne renvoie aucun flux lisible.
 
+Constaté le 2026-10-10 sur le téléphone : `innertubex` sert les flux avec le client `VISIONOS`,
+en URL directe, sans requêtes par plages, en 5 s environ au premier titre.
+
 Chaîne finale dans notre appli : `innertubex` (5 clients) → NewPipeExtractor → message d'erreur + « Réessayer ».
 Toute la chaîne vit dans le module `youtube`, derrière une seule interface `StreamResolver`.
 

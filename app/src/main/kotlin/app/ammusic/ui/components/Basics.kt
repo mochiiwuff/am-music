@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,11 +60,12 @@ fun AmText(
     style: TextStyle = AmTheme.type.body,
     color: Color = AmTheme.colors.text,
     maxLines: Int = Int.MAX_VALUE,
+    textAlign: TextAlign = TextAlign.Unspecified,
 ) {
     BasicText(
         text = text,
         modifier = modifier,
-        style = style,
+        style = if (textAlign == TextAlign.Unspecified) style else style.copy(textAlign = textAlign),
         color = { color },
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
@@ -176,8 +178,8 @@ fun Artwork(seed: Int, modifier: Modifier = Modifier, corner: Dp = 10.dp, elevat
 }
 
 @Composable
-fun SectionHeader(title: String, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 32.dp, bottom = 12.dp)) {
-        AmText(title, style = AmTheme.type.section)
+fun SectionHeader(title: String, modifier: Modifier = Modifier, top: Dp = 32.dp) {
+    Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 12.dp)) {
+        AmText(title, style = AmTheme.type.section, maxLines = 2)
     }
 }

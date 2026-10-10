@@ -25,7 +25,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
-import app.ammusic.domain.model.MediaCard
+import app.ammusic.playback.PlayerState
 import app.ammusic.ui.theme.AmTheme
 
 enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
@@ -51,9 +51,9 @@ fun FloatingBars(
     onSelect: (Tab) -> Unit,
     collapsed: Boolean,
     onExpand: () -> Unit,
-    track: MediaCard,
-    playing: Boolean,
+    player: PlayerState,
     onTogglePlay: () -> Unit,
+    onNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val progress = animateFloatAsState(
@@ -64,7 +64,7 @@ fun FloatingBars(
     Layout(
         content = {
             TabBar(current, onSelect, collapsed, { progress.value }, onExpand)
-            MiniPlayer(track, playing, onTogglePlay)
+            MiniPlayer(player, onTogglePlay, onNext)
         },
         modifier = modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
     ) { measurables, constraints ->
@@ -142,22 +142,37 @@ private fun TabBar(
 }
 
 @Composable
-private fun MiniPlayer(track: MediaCard, playing: Boolean, onTogglePlay: () -> Unit) {
+private fun MiniPlayer(player: PlayerState, onTogglePlay: () -> Unit, onNext: () -> Unit) {
     val colors = AmTheme.colors
+    val track = player.track
+    val active = player.isPlaying || player.isLoading
     Row(
         modifier = Modifier.fillMaxSize().glass(CircleShape).padding(start = 8.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(track.artSeed, Modifier.size(40.dp), corner = 20.dp)
+        Cover(track?.thumbnail, Modifier.size(40.dp), requestSize = 160, circle = true)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            AmText(track.title, style = AmTheme.type.subhead, maxLines = 1)
-            AmText(track.subtitle, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
+            AmText(track?.title ?: "Aucune lecture en cours", style = AmTheme.type.subhead, maxLines = 1)
+            val subtitle = when {
+                track == null -> "Choisissez un titre"
+                player.failed -> "Lecture impossible, nouvel essai…"
+                player.isLoading -> "Chargement…"
+                else -> track.artists
+            }
+            AmText(subtitle, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
-        IconButton(
-            icon = if (playing) AmIcons.Pause else AmIcons.Play,
-            label = if (playing) "Pause" else "Lecture",
-            onClick = onTogglePlay,
-        )
-        IconButton(icon = AmIcons.Next, label = "Titre suivant", onClick = {})
+        if (track != null) {
+            IconButton(
+                icon = if (active) AmIcons.Pause else AmIcons.Play,
+                label = if (active) "Pause" else "Lecture",
+                onClick = onTogglePlay,
+            )
+            IconButton(
+                icon = AmIcons.Next,
+                label = "Titre suivant",
+                onClick = onNext,
+                tint = if (player.hasNext) colors.text else colors.textTertiary,
+            )
+        }
     }
 }

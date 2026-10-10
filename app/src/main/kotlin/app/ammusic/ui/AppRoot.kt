@@ -33,7 +33,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import app.ammusic.data.fake.FakeData
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.ammusic.ui.components.FloatingBars
 import app.ammusic.ui.components.FloatingBarsHeight
 import app.ammusic.ui.components.LocalBottomInset
@@ -88,7 +89,8 @@ fun AppRoot(
     val entry by nav.currentBackStackEntryAsState()
     var currentTab by rememberSaveable { mutableStateOf(Tab.Home) }
     var collapsed by remember { mutableStateOf(false) }
-    var playing by rememberSaveable { mutableStateOf(false) }
+    val playerViewModel: PlayerViewModel = hiltViewModel()
+    val player by playerViewModel.state.collectAsStateWithLifecycle()
     val scroll = remember { BarsScrollConnection { collapsed = it } }
 
     LaunchedEffect(entry) {
@@ -113,8 +115,8 @@ fun AppRoot(
                 popEnterTransition = { fadeIn(FadeSpec) },
                 popExitTransition = { fadeOut(FadeSpec) },
             ) {
-                composable<HomeRoute> { HomeScreen(onProfile = openSettings) }
-                composable<SearchRoute> { SearchScreen(onProfile = openSettings) }
+                composable<HomeRoute> { HomeScreen(onProfile = openSettings, onPlay = playerViewModel::play) }
+                composable<SearchRoute> { SearchScreen(onProfile = openSettings, onPlay = playerViewModel::play) }
                 composable<LibraryRoute> { LibraryScreen(onProfile = openSettings) }
                 composable<SettingsRoute>(
                     enterTransition = { slideInHorizontally(SlideSpec) { it } },
@@ -135,9 +137,9 @@ fun AppRoot(
                 },
                 collapsed = collapsed,
                 onExpand = { collapsed = false },
-                track = FakeData.nowPlaying,
-                playing = playing,
-                onTogglePlay = { playing = !playing },
+                player = player,
+                onTogglePlay = playerViewModel::toggle,
+                onNext = playerViewModel::next,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
