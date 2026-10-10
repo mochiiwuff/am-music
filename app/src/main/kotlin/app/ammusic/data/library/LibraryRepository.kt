@@ -1,6 +1,7 @@
 package app.ammusic.data.library
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.model.YtAlbum
@@ -149,22 +150,22 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         val start = now()
         coroutineScope {
             launch {
-                YouTubeMusic.likedTracks().onSuccess { tracks ->
+                YouTubeMusic.likedTracks().logged("titres aimés") { it.size }.onSuccess { tracks ->
                     dao.replaceRemoteLiked(tracks.map { it.toRow() }, tracks.mapIndexed { index, track -> LikedRow(track.id, start - index, local = false) })
                 }
             }
             launch {
-                YouTubeMusic.libraryAlbums().onSuccess { albums ->
+                YouTubeMusic.libraryAlbums().logged("albums") { it.size }.onSuccess { albums ->
                     dao.replaceRemoteAlbums(albums.mapIndexed { index, album -> album.toRow(start - index, local = false) })
                 }
             }
             launch {
-                YouTubeMusic.libraryArtists().onSuccess { artists ->
+                YouTubeMusic.libraryArtists().logged("artistes") { it.size }.onSuccess { artists ->
                     dao.replaceRemoteArtists(artists.mapIndexed { index, artist -> ArtistRow(artist.id, artist.title, artist.thumbnail, start - index, local = false) })
                 }
             }
             launch {
-                YouTubeMusic.libraryPlaylists().onSuccess { playlists ->
+                YouTubeMusic.libraryPlaylists().logged("playlists") { it.size }.onSuccess { playlists ->
                     dao.replaceRemotePlaylists(
                         playlists.mapIndexed { index, playlist ->
                             playlist.toRow(start - index, if (playlist.editable) PlaylistKind.Mine else PlaylistKind.Saved)
@@ -198,3 +199,11 @@ private fun AlbumRow.toAlbum() = YtAlbum(id, playlistId, title, subtitle, thumbn
 private fun YtPlaylist.toRow(addedAt: Long, kind: Int) = PlaylistRow(id, title, subtitle, thumbnail, addedAt, kind)
 
 private fun PlaylistRow.toPlaylist() = YtPlaylist(id, title, subtitle, thumbnail, editable = kind != PlaylistKind.Saved)
+
+/** Trace dans le journal (`adb logcat -s AmLibrary`) ce que la copie de la bibliothèque du compte a reçu, ou pourquoi elle a échoué. */
+private fun <T> Result<T>.logged(what: String, size: (T) -> Int): Result<T> = also { result ->
+    result.fold(
+        onSuccess = { Log.d("AmLibrary", "$what : ${size(it)} reçus") },
+        onFailure = { Log.w("AmLibrary", "$what : échec (${it.javaClass.simpleName} : ${it.message?.take(200)})") },
+    )
+}

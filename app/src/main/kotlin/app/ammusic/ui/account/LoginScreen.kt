@@ -1,6 +1,7 @@
 package app.ammusic.ui.account
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -60,6 +61,8 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
     val colors = AmTheme.colors
     var loading by remember { mutableStateOf(true) }
     var signedIn by remember { mutableStateOf(false) }
+    var arrived by remember { mutableStateOf(false) }
+    var collecting by remember { mutableStateOf(false) }
     val statusBar = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     Column(Modifier.fillMaxSize().background(colors.background).padding(top = statusBar).navigationBarsPadding().imePadding()) {
@@ -76,16 +79,29 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
                         settings.domStorageEnabled = true
                         CookieManager.getInstance().setAcceptCookie(true)
                         webViewClient = object : WebViewClient() {
+                            // Dès que Google renvoie vers YouTube Music, on masque la page : le site n'a pas à s'afficher.
+                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                                if (url.isMusicSite()) arrived = true
+                            }
+
                             override fun onPageFinished(view: WebView, url: String?) {
                                 loading = false
-                                val uri = url?.toUri() ?: return
-                                if (signedIn || uri.scheme != "https" || uri.host != "music.youtube.com") return
-                                collect(view, attempt = 0) { session ->
-                                    if (!signedIn) {
+                                if (signedIn || collecting || !url.isMusicSite()) return
+                                collecting = true
+                                collect(
+                                    view = view,
+                                    attempt = 0,
+                                    onSession = { session ->
                                         signedIn = true
                                         viewModel.signIn(session, onDone = actions.back)
-                                    }
-                                }
+                                    },
+                                    // Arrivé sur le site sans être connecté : retour à la page de connexion.
+                                    onMissing = {
+                                        collecting = false
+                                        arrived = false
+                                        view.loadUrl(LoginUrl)
+                                    },
+                                )
                             }
                         }
                         loadUrl(LoginUrl)
@@ -93,9 +109,9 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
                 },
                 onRelease = { it.destroy() },
             )
-            if (loading || signedIn) {
+            if (loading || arrived) {
                 Column(Modifier.fillMaxSize().background(colors.background)) {
-                    if (signedIn) {
+                    if (arrived) {
                         AmText(
                             text = "Connexion réussie. Récupération de votre bibliothèque…",
                             color = colors.textSecondary,
@@ -111,19 +127,29 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
 
 /**
  * Attend que la session soit complète : le cookie `SAPISID` (preuve de connexion) et les identifiants de la page,
- * qui n'apparaissent qu'un instant après la fin du chargement. Sans eux au bout de [MaxAttempts] essais, on se contente des cookies.
+ * qui n'apparaissent qu'un instant après la fin du chargement. Sans eux au bout de [MaxAttempts] essais, on se contente des cookies ;
+ * sans cookie de connexion, [onMissing] est appelé.
  */
-private fun collect(view: WebView, attempt: Int, onSession: (YtSession) -> Unit) {
+private fun collect(view: WebView, attempt: Int, onSession: (YtSession) -> Unit, onMissing: () -> Unit) {
+    val retry = { view.postDelayed({ collect(view, attempt + 1, onSession, onMissing) }, 350) }
     val cookie = CookieManager.getInstance().getCookie(MusicUrl).orEmpty()
-    if (cookie.split("; ").none { it.startsWith("SAPISID=") }) return
+    if (cookie.split("; ").none { it.startsWith("SAPISID=") }) {
+        if (attempt < MaxAttempts) retry() else onMissing()
+        return
+    }
     view.evaluateJavascript(ConfigScript) { raw ->
         val config = runCatching { Json.parseToJsonElement(Json.decodeFromString<String>(raw)).jsonObject }.getOrNull()
         when {
             config != null -> onSession(
                 YtSession(cookie, config["v"]?.jsonPrimitive?.contentOrNull, config["d"]?.jsonPrimitive?.contentOrNull),
             )
-            attempt < MaxAttempts -> view.postDelayed({ collect(view, attempt + 1, onSession) }, 350)
+            attempt < MaxAttempts -> retry()
             else -> onSession(YtSession(cookie, null, null))
         }
     }
+}
+
+private fun String?.isMusicSite(): Boolean {
+    val uri = this?.toUri() ?: return false
+    return uri.scheme == "https" && uri.host == "music.youtube.com"
 }
