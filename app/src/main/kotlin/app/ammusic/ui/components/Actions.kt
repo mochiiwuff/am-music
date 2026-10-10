@@ -3,6 +3,7 @@ package app.ammusic.ui.components
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import app.ammusic.youtube.model.YtAccount
 import app.ammusic.youtube.model.YtItem
 import app.ammusic.youtube.model.YtMood
 import app.ammusic.youtube.model.YtTrack
@@ -43,3 +44,6 @@ val LocalNowPlaying = compositionLocalOf { NowPlaying() }
 
 /** Clé qui relie la pochette d'un élément de liste à celle de la page qu'il ouvre. [origin] distingue les listes d'un même écran. */
 fun sharedKey(origin: String, item: YtItem): String = "$origin/${item.key}"
+
+/** Compte YouTube Music connecté, ou `null` en mode invité. */
+val LocalAccount = compositionLocalOf<YtAccount?> { null }

@@ -50,6 +50,7 @@ import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AppActions
 import app.ammusic.ui.components.FloatingBars
 import app.ammusic.ui.components.FloatingBarsHeight
+import app.ammusic.ui.components.LocalAccount
 import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.LocalBottomInset
 import app.ammusic.ui.components.LocalHazeState
@@ -148,6 +149,7 @@ fun AppRoot(
     val libraryViewModel: LibraryViewModel = hiltViewModel()
     val playlists by libraryViewModel.playlists.collectAsStateWithLifecycle()
     val likedIds by libraryViewModel.likedIds.collectAsStateWithLifecycle()
+    val account by libraryViewModel.account.collectAsStateWithLifecycle()
 
     val openArtist = { id: String, name: String -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) }
 
@@ -217,6 +219,7 @@ fun AppRoot(
         LocalHazeState provides rememberHazeState(),
         LocalBottomInset provides bottomInset,
         LocalActions provides actions,
+        LocalAccount provides account,
         LocalNowPlaying provides NowPlaying(player.track?.id, player.isPlaying),
     ) {
         Box(Modifier.fillMaxSize().background(AmTheme.colors.background).nestedScroll(scroll)) {

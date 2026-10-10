@@ -46,7 +46,9 @@ import app.ammusic.ui.components.ErrorState
 import app.ammusic.ui.components.ItemCarousel
 import app.ammusic.ui.components.ItemRow
 import app.ammusic.ui.components.LargeTitleScreen
+import app.ammusic.ui.components.LocalAccount
 import app.ammusic.ui.components.LocalActions
+import app.ammusic.ui.components.RowCoverSize
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.sharedKey
@@ -103,9 +105,15 @@ fun HomeScreen(onProfile: () -> Unit, viewModel: HomeViewModel = hiltViewModel()
 @Composable
 fun ProfileButton(onClick: () -> Unit) {
     val colors = AmTheme.colors
+    val avatar = LocalAccount.current?.avatar
     Box(Modifier.size(48.dp).pressable(scale = 0.88f, label = "Réglages", onClick = onClick), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(32.dp).clip(CircleShape).background(colors.surfaceHigh), contentAlignment = Alignment.Center) {
-            AmIcon(AmIcons.User, tint = colors.accent, size = 18.dp)
+        // Connectée : la photo du compte ; en invité : une silhouette.
+        if (avatar != null) {
+            Cover(avatar, Modifier.size(32.dp), circle = true, requestSize = RowCoverSize)
+        } else {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(colors.surfaceHigh), contentAlignment = Alignment.Center) {
+                AmIcon(AmIcons.User, tint = colors.accent, size = 18.dp)
+            }
         }
     }
 }
