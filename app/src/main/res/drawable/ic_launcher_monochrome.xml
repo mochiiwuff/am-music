@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Les trois barres de l'icône, aux mêmes positions que dans l'image. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M33.1,45.5 a5,5 0 0 1 10,0 V70.3 a5,5 0 0 1 -10,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M49,34.8 a5,5 0 0 1 10,0 V70.3 a5,5 0 0 1 -10,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64.9,56.5 a5,5 0 0 1 10,0 V70.3 a5,5 0 0 1 -10,0 Z" />
+</vector>

@@ -5,7 +5,7 @@ import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
 import java.io.StringReader
 
-/** Un mot et le moment où il est chanté (paroles « mot à mot »). */
+/** Un mot (ou une syllabe) et le moment où il est chanté. [text] porte lui-même l'espace qui le suit, s'il y en a un. */
 data class LyricWord(val text: String, val startMs: Long, val endMs: Long)
 
 /** Une ligne de paroles. [words] est vide quand la source ne donne que le début de la ligne. */
@@ -81,6 +81,8 @@ fun parseTtml(ttml: String): List<LyricLine> = runCatching {
                 val timing = spans.lastOrNull()
                 if (chunk.isBlank()) {
                     if (text.isNotEmpty() && !text.endsWith(' ')) text.append(' ')
+                    // L'espace qui suit un mot lui est rattaché : deux syllabes collées restent collées à l'affichage.
+                    words.lastOrNull()?.takeIf { !it.text.endsWith(' ') }?.let { words[words.lastIndex] = it.copy(text = it.text + " ") }
                 } else {
                     if (timing != null) words += LyricWord(chunk.trim(), timing.first, timing.second)
                     text.append(chunk.trimStart())

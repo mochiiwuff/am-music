@@ -221,10 +221,9 @@ private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onCli
             val now = position()
             BasicText(
                 text = buildAnnotatedString {
-                    line.words.forEachIndexed { index, word ->
+                    line.words.forEach { word ->
                         val sung = ((now - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
                         withStyle(SpanStyle(color = Color.White.copy(alpha = 0.42f + 0.58f * sung))) { append(word.text) }
-                        if (index < line.words.lastIndex) append(' ')
                     }
                 },
                 style = LineStyle,

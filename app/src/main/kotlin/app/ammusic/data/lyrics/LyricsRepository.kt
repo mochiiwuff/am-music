@@ -34,9 +34,20 @@ private val TitleNoise = Regex(
 
 private const val Tag = "AmLyrics"
 
+private val LyricsPlusServers = listOf("https://lyricsplus.prjktla.my.id", "https://lyricsplus.binimum.org")
+
+@Serializable
+private data class PlusWord(val time: Long = 0, val duration: Long = 0, val text: String = "", val isBackground: Boolean = false)
+
+@Serializable
+private data class PlusLine(val time: Long = 0, val duration: Long = 0, val text: String = "", val syllabus: List<PlusWord>? = null)
+
+@Serializable
+private data class PlusResponse(val lyrics: List<PlusLine> = emptyList())
+
 /**
  * Cherche les paroles d'un titre, de la source la plus précise à la plus simple :
- * BetterLyrics (mot à mot), puis LRCLIB (ligne par ligne, sinon texte seul).
+ * LyricsPlus puis BetterLyrics (mot à mot quand il existe), puis LRCLIB (ligne par ligne, sinon texte seul).
  * Les réponses sont gardées en mémoire le temps de la session.
  */
 @Singleton
@@ -53,7 +64,8 @@ class LyricsRepository @Inject constructor() {
         val artist = track.artists.substringBefore(", ")
         val seconds = (durationMs / 1000).toInt()
 
-        val found = wordByWord(title, artist, track.album, seconds)
+        val found = lyricsPlus(title, artist, track.album, seconds)
+            ?: betterLyrics(title, artist, track.album, seconds)
             ?: lrcLib(title, artist, track.album, seconds)
             ?: Lyrics.None
         val detail = when (found) {
@@ -67,7 +79,29 @@ class LyricsRepository @Inject constructor() {
         found
     }
 
-    private fun wordByWord(title: String, artist: String, album: String?, seconds: Int): Lyrics? {
+    /** LyricsPlus : mot à mot pour les titres connus, ligne par ligne sinon. Deux serveurs, essayés dans l'ordre. */
+    private fun lyricsPlus(title: String, artist: String, album: String?, seconds: Int): Lyrics? {
+        for (server in LyricsPlusServers) {
+            val url = "$server/v2/lyrics/get".toHttpUrl().newBuilder()
+                .addQueryParameter("title", title)
+                .addQueryParameter("artist", artist)
+                .apply {
+                    if (seconds > 0) addQueryParameter("duration", seconds.toString())
+                    if (!album.isNullOrBlank()) addQueryParameter("album", album)
+                }
+                .build()
+            val body = get(url) ?: continue
+            val lines = runCatching { json.decodeFromString<PlusResponse>(body).lyrics }.getOrNull().orEmpty().map { line ->
+                val words = line.syllabus.orEmpty().filterNot { it.isBackground }.map { LyricWord(it.text, it.time, it.time + it.duration) }
+                LyricLine(line.time, line.text.trim(), words)
+            }
+            if (lines.isNotEmpty()) return Lyrics.Synced(lines.sortedBy { it.startMs })
+        }
+        return null
+    }
+
+    /** BetterLyrics : mot à mot, mais sans clé il ne sert que les titres qu'il a déjà en réserve (sinon réponse 401). */
+    private fun betterLyrics(title: String, artist: String, album: String?, seconds: Int): Lyrics? {
         val url = "https://lyrics-api.boidu.dev/getLyrics".toHttpUrl().newBuilder()
             .addQueryParameter("s", title)
             .addQueryParameter("a", artist)
@@ -76,7 +110,10 @@ class LyricsRepository @Inject constructor() {
                 if (!album.isNullOrBlank()) addQueryParameter("al", album)
             }
             .build()
-        val ttml = get(url)?.let { runCatching { json.decodeFromString<TtmlResponse>(it).ttml }.getOrNull() } ?: return null
+        val body = get(url) ?: return null
+        val ttml = runCatching { json.decodeFromString<TtmlResponse>(body).ttml }
+            .onFailure { Log.w(Tag, "BetterLyrics : réponse illisible (${it.javaClass.simpleName})") }
+            .getOrNull() ?: return null
         val lines = parseTtml(ttml)
         Log.d(Tag, "BetterLyrics : ${ttml.length} caractères, ${lines.size} lignes")
         return lines.takeIf { it.isNotEmpty() }?.let(Lyrics::Synced)
@@ -115,6 +152,9 @@ class LyricsRepository @Inject constructor() {
     /** Corps de la réponse, ou `null` si la requête échoue ou ne trouve rien. */
     private fun get(url: HttpUrl): String? = runCatching {
         val request = Request.Builder().url(url).header("User-Agent", "AM Music (appli personnelle)").build()
-        client.newCall(request).execute().use { response -> if (response.isSuccessful) response.body?.string() else null }
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) Log.d(Tag, "${url.host} : réponse ${response.code}")
+            if (response.isSuccessful) response.body?.string() else null
+        }
     }.onFailure { Log.w(Tag, "${url.host} : ${it.javaClass.simpleName}") }.getOrNull()
 }
