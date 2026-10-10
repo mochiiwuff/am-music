@@ -18,6 +18,8 @@ data class YtTrack(
     val album: String? = null,
     override val thumbnail: String? = null,
     val durationSeconds: Int? = null,
+    val artistId: String? = null,
+    val albumId: String? = null,
 ) : YtItem {
     override val subtitle get() = artists
     override val key get() = "t:$id"
@@ -29,6 +31,8 @@ data class YtAlbum(
     override val title: String,
     override val subtitle: String,
     override val thumbnail: String?,
+    val artistId: String? = null,
+    val year: Int? = null,
 ) : YtItem {
     override val key get() = "a:$id"
 }
@@ -51,7 +55,23 @@ data class YtArtist(
     override val key get() = "r:$id"
 }
 
-data class YtSection(val title: String, val items: List<YtItem>)
+/** [moreId] et [moreParams] mènent à la liste complète de la section (« Tout voir »), quand YouTube en propose une. */
+data class YtSection(val title: String, val items: List<YtItem>, val moreId: String? = null, val moreParams: String? = null)
+
+data class YtAlbumPage(val album: YtAlbum, val tracks: List<YtTrack>, val otherVersions: List<YtAlbum>)
+
+/** [continuation] sert à demander la suite des titres avec `playlistMore`. */
+data class YtPlaylistPage(val playlist: YtPlaylist, val description: String?, val tracks: List<YtTrack>, val continuation: String?)
+
+/** [listeners] est une phrase déjà rédigée par YouTube (« 2,4 M d'auditeurs mensuels »). */
+data class YtArtistPage(val artist: YtArtist, val listeners: String?, val description: String?, val sections: List<YtSection>)
+
+/** Page faite de sections : une humeur, un genre, ou la liste complète d'une section d'artiste. */
+data class YtBrowsePage(val title: String, val sections: List<YtSection>)
+
+enum class YtSearchFilter { Songs, Albums, Artists, Playlists, Videos }
+
+data class YtSearchPage(val items: List<YtItem>, val continuation: String?)
 
 /** Humeur ou genre. [color] est la couleur ARGB que YouTube associe à la tuile. */
 data class YtMood(val title: String, val color: Long, val browseId: String, val params: String?)

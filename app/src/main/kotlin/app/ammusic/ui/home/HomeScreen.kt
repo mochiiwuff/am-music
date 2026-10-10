@@ -43,11 +43,13 @@ import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.Cover
 import app.ammusic.ui.components.ErrorState
-import app.ammusic.ui.components.IconButton
+import app.ammusic.ui.components.ItemCarousel
 import app.ammusic.ui.components.ItemRow
 import app.ammusic.ui.components.LargeTitleScreen
+import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.pressable
+import app.ammusic.ui.components.sharedKey
 import app.ammusic.ui.components.shimmer
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtAlbum
@@ -58,9 +60,8 @@ import app.ammusic.youtube.model.YtPlaylist
 import app.ammusic.youtube.model.YtTrack
 
 @Composable
-fun HomeScreen(onProfile: () -> Unit, onPlay: (YtTrack) -> Unit, viewModel: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(onProfile: () -> Unit, viewModel: HomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val onItem: (YtItem) -> Unit = { if (it is YtTrack) onPlay(it) }
 
     LargeTitleScreen(title = "Accueil", trailing = { ProfileButton(onProfile) }) {
         when (val current = state) {
@@ -82,9 +83,9 @@ fun HomeScreen(onProfile: () -> Unit, onPlay: (YtTrack) -> Unit, viewModel: Home
                     }
                     item(key = "section$index", contentType = "section") {
                         when {
-                            section.items.all { it is YtTrack } -> TrackGrid(section.items, onItem)
-                            index == hero -> HeroCarousel(section.items, onItem)
-                            else -> SquareCarousel(section.items, onItem)
+                            section.items.all { it is YtTrack } -> TrackGrid(section.items, "home$index")
+                            index == hero -> HeroCarousel(section.items, "home$index")
+                            else -> ItemCarousel(section.items, "home$index")
                         }
                     }
                 }
@@ -117,7 +118,8 @@ private fun YtItem.kind(): String = when (this) {
 }
 
 @Composable
-private fun HeroCarousel(items: List<YtItem>, onItem: (YtItem) -> Unit) {
+private fun HeroCarousel(items: List<YtItem>, origin: String) {
+    val actions = LocalActions.current
     val state = rememberLazyListState()
     LazyRow(
         state = state,
@@ -126,8 +128,15 @@ private fun HeroCarousel(items: List<YtItem>, onItem: (YtItem) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(items, key = { it.key }) { item ->
-            Box(Modifier.width(284.dp).height(348.dp).pressable(scale = 0.97f) { onItem(item) }) {
-                Cover(item.thumbnail, Modifier.fillMaxSize(), corner = 22.dp, requestSize = 720, elevated = true)
+            Box(Modifier.width(284.dp).height(348.dp).pressable(scale = 0.97f) { actions.open(item, origin, 720) }) {
+                Cover(
+                    url = item.thumbnail,
+                    modifier = Modifier.fillMaxSize(),
+                    corner = 22.dp,
+                    requestSize = 720,
+                    elevated = true,
+                    sharedKey = if (item is YtTrack) null else sharedKey(origin, item),
+                )
                 Column(
                     Modifier
                         .fillMaxSize()
@@ -153,22 +162,9 @@ private fun HeroCarousel(items: List<YtItem>, onItem: (YtItem) -> Unit) {
     }
 }
 
-@Composable
-private fun SquareCarousel(items: List<YtItem>, onItem: (YtItem) -> Unit) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        items(items, key = { it.key }) { item ->
-            Column(Modifier.width(148.dp).pressable { onItem(item) }) {
-                Cover(item.thumbnail, Modifier.fillMaxWidth().aspectRatio(1f), corner = 12.dp, elevated = true, circle = item is YtArtist)
-                Spacer(Modifier.height(8.dp))
-                AmText(item.title, style = AmTheme.type.subhead, maxLines = 1)
-                AmText(item.subtitle, style = AmTheme.type.footnote, color = AmTheme.colors.textSecondary, maxLines = 1)
-            }
-        }
-    }
-}
 
 @Composable
-private fun TrackGrid(tracks: List<YtItem>, onItem: (YtItem) -> Unit) {
+private fun TrackGrid(tracks: List<YtItem>, origin: String) {
     val rows = tracks.size.coerceIn(1, 3)
     LazyHorizontalGrid(
         rows = GridCells.Fixed(rows),
@@ -177,9 +173,7 @@ private fun TrackGrid(tracks: List<YtItem>, onItem: (YtItem) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items(tracks, key = { it.key }) { track ->
-            ItemRow(track, onClick = { onItem(track) }, modifier = Modifier.width(304.dp)) {
-                IconButton(AmIcons.More, label = "Plus d'options", onClick = {}, tint = AmTheme.colors.textSecondary, iconSize = 20.dp)
-            }
+            ItemRow(track, origin, Modifier.width(304.dp))
         }
     }
 }
@@ -187,6 +181,7 @@ private fun TrackGrid(tracks: List<YtItem>, onItem: (YtItem) -> Unit) {
 /** Rangée de deux tuiles aux couleurs fournies par YouTube Music. */
 @Composable
 fun MoodRow(moods: List<YtMood>, height: Int = 76) {
+    val actions = LocalActions.current
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -197,7 +192,7 @@ fun MoodRow(moods: List<YtMood>, height: Int = 76) {
                 Modifier
                     .weight(1f)
                     .height(height.dp)
-                    .pressable {}
+                    .pressable { actions.openMood(mood) }
                     .clip(RoundedCornerShape(14.dp))
                     .background(AmTheme.colors.surface)
                     .drawBehind {

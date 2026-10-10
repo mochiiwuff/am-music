@@ -1,6 +1,14 @@
 package app.ammusic.ui.search
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,14 +44,14 @@ import app.ammusic.ui.components.ItemRow
 import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.pressable
-import app.ammusic.ui.components.shimmer
+import app.ammusic.ui.components.RowsSkeleton
 import app.ammusic.ui.home.MoodRow
 import app.ammusic.ui.home.ProfileButton
 import app.ammusic.ui.theme.AmTheme
-import app.ammusic.youtube.model.YtTrack
+import app.ammusic.youtube.model.YtSearchFilter
 
 @Composable
-fun SearchScreen(onProfile: () -> Unit, onPlay: (YtTrack) -> Unit, viewModel: SearchViewModel = hiltViewModel()) {
+fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
     val submit: (String) -> Unit = {
@@ -57,8 +65,42 @@ fun SearchScreen(onProfile: () -> Unit, onPlay: (YtTrack) -> Unit, viewModel: Se
         }
 
         val results = state.results
+        if (state.query.isNotBlank() && results !is SearchResults.None) {
+            item(key = "filters", contentType = "filters") { FilterChips(state.filter, viewModel::onFilter) }
+        }
         when {
             state.query.isBlank() -> {
+                if (state.history.isNotEmpty()) {
+                    item(key = "historyHeader", contentType = "header") {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            SectionHeader("Recherches récentes", Modifier.weight(1f), top = 20.dp)
+                            AmText(
+                                text = "Effacer",
+                                style = AmTheme.type.subhead,
+                                color = AmTheme.colors.accent,
+                                modifier = Modifier
+                                    .pressable(label = "Effacer l'historique", onClick = viewModel::clearHistory)
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                            )
+                        }
+                    }
+                    items(state.history, key = { "history:$it" }, contentType = { "history" }) { entry ->
+                        Row(
+                            Modifier.fillMaxWidth().animateItem().pressable(scale = 0.98f) { submit(entry) }.padding(start = 20.dp, end = 8.dp).height(50.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AmIcon(AmIcons.Clock, tint = AmTheme.colors.textTertiary, size = 18.dp)
+                            AmText(entry, maxLines = 1, modifier = Modifier.weight(1f).padding(start = 14.dp))
+                            IconButton(
+                                icon = AmIcons.Close,
+                                label = "Retirer de l'historique",
+                                onClick = { viewModel.forget(entry) },
+                                tint = AmTheme.colors.textTertiary,
+                                iconSize = 16.dp,
+                            )
+                        }
+                    }
+                }
                 if (state.moods.isNotEmpty()) {
                     item(key = "browseHeader", contentType = "header") { SectionHeader("Parcourir les catégories") }
                     items(state.moods.chunked(2), key = { it.first().title }, contentType = { "tiles" }) { pair ->
@@ -77,7 +119,7 @@ fun SearchScreen(onProfile: () -> Unit, onPlay: (YtTrack) -> Unit, viewModel: Se
                 }
             }
 
-            results is SearchResults.Loading -> item(key = "loading") { ResultsSkeleton() }
+            results is SearchResults.Loading -> item(key = "loading") { RowsSkeleton(7, Modifier.padding(vertical = 20.dp)) }
 
             results is SearchResults.Error -> item(key = "error") {
                 ErrorState(
@@ -98,14 +140,78 @@ fun SearchScreen(onProfile: () -> Unit, onPlay: (YtTrack) -> Unit, viewModel: Se
                     }
                 }
                 results.sections.forEachIndexed { index, section ->
-                    item(key = "header$index", contentType = "header") { SectionHeader(section.title, top = 24.dp) }
+                    val filter = SectionFilters[section.title]
+                    item(key = "header$index", contentType = "header") {
+                        SectionHeader(section.title, top = if (index == 0) 12.dp else 24.dp, onMore = filter?.let { { viewModel.onFilter(it) } })
+                    }
                     items(section.items, key = { "$index:${it.key}" }, contentType = { "result" }) { item ->
-                        ItemRow(
-                            item = item,
-                            onClick = { if (item is YtTrack) onPlay(item) },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                        ItemRow(item, "search$index", Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp))
+                    }
+                }
+            }
+
+            results is SearchResults.Filtered -> {
+                if (results.items.isEmpty()) {
+                    item(key = "empty") {
+                        AmText(
+                            text = "Aucun résultat de ce type pour « ${state.query} ».",
+                            color = AmTheme.colors.textSecondary,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 32.dp),
                         )
                     }
+                }
+                items(results.items, key = { it.key }, contentType = { "result" }) { item ->
+                    ItemRow(item, "searchFiltered", Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp))
+                }
+                if (results.continuation != null) {
+                    item(key = "more", contentType = "more") {
+                        LaunchedEffect(results.continuation) { viewModel.loadMore() }
+                        RowsSkeleton(2, Modifier.padding(vertical = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Sections des résultats groupés dont l'en-tête mène au filtre correspondant. */
+private val SectionFilters = mapOf(
+    "Titres" to YtSearchFilter.Songs,
+    "Clips" to YtSearchFilter.Videos,
+    "Albums" to YtSearchFilter.Albums,
+    "Artistes" to YtSearchFilter.Artists,
+    "Playlists de la communauté" to YtSearchFilter.Playlists,
+)
+
+private val Filters = listOf(
+    null to "Tout",
+    YtSearchFilter.Songs to "Titres",
+    YtSearchFilter.Albums to "Albums",
+    YtSearchFilter.Artists to "Artistes",
+    YtSearchFilter.Playlists to "Playlists",
+    YtSearchFilter.Videos to "Clips",
+)
+
+@Composable
+private fun FilterChips(selected: YtSearchFilter?, onSelect: (YtSearchFilter?) -> Unit) {
+    val colors = AmTheme.colors
+    val soft = spring<Color>(stiffness = 420f)
+    LazyRow(
+        modifier = Modifier.padding(top = 8.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(Filters, key = { it.second }) { (filter, label) ->
+            val active = filter == selected
+            val fill by animateColorAsState(if (active) colors.accent else colors.surface, soft, label = "chip")
+            val text by animateColorAsState(if (active) Color.White else colors.text, soft, label = "chipText")
+            // Zone tactile de 48 dp autour d'une pastille de 36 dp.
+            Box(Modifier.height(48.dp).pressable(haptic = true, label = label) { onSelect(filter) }, contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.height(36.dp).clip(CircleShape).drawBehind { drawRect(fill) }.padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AmText(label, style = AmTheme.type.subhead, color = text)
                 }
             }
         }
@@ -147,17 +253,3 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onSubmit: () 
     }
 }
 
-@Composable
-private fun ResultsSkeleton() {
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        repeat(7) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(52.dp).shimmer(RoundedCornerShape(8.dp)))
-                Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.fillMaxWidth(0.6f).height(14.dp).shimmer(RoundedCornerShape(6.dp)))
-                    Box(Modifier.fillMaxWidth(0.35f).height(12.dp).shimmer(RoundedCornerShape(6.dp)))
-                }
-            }
-        }
-    }
-}

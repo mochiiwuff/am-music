@@ -38,11 +38,34 @@ import app.ammusic.ui.player.PlayerSheet
 import app.ammusic.ui.player.rememberPlayerSheetState
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.ui.platform.LocalContext
+import app.ammusic.ui.components.AmIcons
+import app.ammusic.ui.components.AppActions
 import app.ammusic.ui.components.FloatingBars
 import app.ammusic.ui.components.FloatingBarsHeight
+import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.LocalBottomInset
 import app.ammusic.ui.components.LocalHazeState
+import app.ammusic.ui.components.LocalNowPlaying
+import app.ammusic.ui.components.LocalScreenScope
+import app.ammusic.ui.components.LocalSharedScope
+import app.ammusic.ui.components.MenuAction
+import app.ammusic.ui.components.NowPlaying
+import app.ammusic.ui.components.RowCoverSize
 import app.ammusic.ui.components.Tab
+import app.ammusic.ui.components.TrackMenu
+import app.ammusic.ui.components.sharedKey
+import app.ammusic.ui.detail.ArtistScreen
+import app.ammusic.ui.detail.BrowseScreen
+import app.ammusic.ui.detail.CollectionScreen
+import app.ammusic.youtube.model.YtAlbum
+import app.ammusic.youtube.model.YtArtist
+import app.ammusic.youtube.model.YtPlaylist
+import app.ammusic.youtube.model.YtTrack
 import app.ammusic.ui.home.HomeScreen
 import app.ammusic.ui.library.LibraryScreen
 import app.ammusic.ui.search.SearchScreen
@@ -50,12 +73,7 @@ import app.ammusic.ui.settings.SettingsScreen
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.ui.theme.ThemeMode
 import dev.chrisbanes.haze.rememberHazeState
-import kotlinx.serialization.Serializable
 
-@Serializable data object HomeRoute
-@Serializable data object SearchRoute
-@Serializable data object LibraryRoute
-@Serializable data object SettingsRoute
 
 private val Tab.route: Any
     get() = when (this) {
@@ -81,6 +99,7 @@ private class BarsScrollConnection(private val onCollapsed: (Boolean) -> Unit) :
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun AppRoot(
     themeMode: ThemeMode,
@@ -106,34 +125,89 @@ fun AppRoot(
 
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + FloatingBarsHeight
     val openSettings = { nav.navigate(SettingsRoute) { launchSingleTop = true } }
+    var menuTrack by remember { mutableStateOf<YtTrack?>(null) }
+    val context = LocalContext.current
+
+    val actions = remember(nav, playerViewModel) {
+        AppActions(
+            open = { item, origin, coverSize ->
+                val key = sharedKey(origin, item)
+                when (item) {
+                    is YtTrack -> playerViewModel.play(item)
+                    is YtAlbum -> nav.navigate(CollectionRoute(true, item.id, item.title, item.subtitle, item.thumbnail, key, coverSize))
+                    is YtPlaylist -> nav.navigate(CollectionRoute(false, item.id, item.title, item.subtitle, item.thumbnail, key, coverSize))
+                    is YtArtist -> nav.navigate(ArtistRoute(item.id, item.title, item.thumbnail, key, coverSize))
+                }
+            },
+            playAll = playerViewModel::playAll,
+            menu = { menuTrack = it },
+            openMood = { nav.navigate(BrowseRoute(it.browseId, it.params, it.title, artist = false)) },
+            openMore = { title, browseId, params -> nav.navigate(BrowseRoute(browseId, params, title, artist = true)) },
+            openArtist = { id, name -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) },
+            back = { nav.popBackStack() },
+        )
+    }
+    val menuActions: (YtTrack) -> List<MenuAction> = remember(actions) {
+        { track ->
+            listOfNotNull(
+                MenuAction(AmIcons.PlayNext, "Lire ensuite") { playerViewModel.playNext(track) },
+                MenuAction(AmIcons.QueueAdd, "Ajouter à la file d'attente") { playerViewModel.addToQueue(track) },
+                MenuAction(AmIcons.Radio, "Lancer la radio du titre") { playerViewModel.play(track) },
+                track.albumId?.let { id ->
+                    MenuAction(AmIcons.Album, "Voir l'album") {
+                        nav.navigate(CollectionRoute(true, id, track.album.orEmpty(), track.artists, track.thumbnail, "", RowCoverSize))
+                    }
+                },
+                track.artistId?.let { id ->
+                    MenuAction(AmIcons.Artist, "Voir l'artiste") { actions.openArtist(id, track.artists.substringBefore(", ")) }
+                },
+                MenuAction(AmIcons.Share, "Partager") {
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${track.id}")
+                    context.startActivity(Intent.createChooser(send, null))
+                },
+            )
+        }
+    }
 
     CompositionLocalProvider(
         LocalHazeState provides rememberHazeState(),
         LocalBottomInset provides bottomInset,
+        LocalActions provides actions,
+        LocalNowPlaying provides NowPlaying(player.track?.id, player.isPlaying),
     ) {
         Box(Modifier.fillMaxSize().background(AmTheme.colors.background).nestedScroll(scroll)) {
-            NavHost(
-                navController = nav,
-                startDestination = HomeRoute,
-                enterTransition = { fadeIn(FadeSpec) + scaleIn(FadeSpec, initialScale = 0.985f) },
-                exitTransition = { fadeOut(FadeSpec) },
-                popEnterTransition = { fadeIn(FadeSpec) },
-                popExitTransition = { fadeOut(FadeSpec) },
-            ) {
-                composable<HomeRoute> { HomeScreen(onProfile = openSettings, onPlay = playerViewModel::play) }
-                composable<SearchRoute> { SearchScreen(onProfile = openSettings, onPlay = playerViewModel::play) }
-                composable<LibraryRoute> { LibraryScreen(onProfile = openSettings) }
-                composable<SettingsRoute>(
-                    enterTransition = { slideInHorizontally(SlideSpec) { it } },
-                    popExitTransition = { slideOutHorizontally(SlideSpec) { it } },
+            SharedTransitionLayout {
+                // Chaque écran reçoit de quoi faire voyager ses pochettes vers l'écran suivant.
+                val screen: @Composable AnimatedVisibilityScope.(@Composable () -> Unit) -> Unit = { content ->
+                    CompositionLocalProvider(LocalSharedScope provides this@SharedTransitionLayout, LocalScreenScope provides this, content = content)
+                }
+                NavHost(
+                    navController = nav,
+                    startDestination = HomeRoute,
+                    enterTransition = { fadeIn(FadeSpec) + scaleIn(FadeSpec, initialScale = 0.985f) },
+                    exitTransition = { fadeOut(FadeSpec) },
+                    popEnterTransition = { fadeIn(FadeSpec) },
+                    popExitTransition = { fadeOut(FadeSpec) },
                 ) {
-                    SettingsScreen(themeMode, onThemeMode, accentIndex, onAccent, onBack = { nav.popBackStack() })
+                    composable<HomeRoute> { screen { HomeScreen(onProfile = openSettings) } }
+                    composable<SearchRoute> { screen { SearchScreen(onProfile = openSettings) } }
+                    composable<LibraryRoute> { screen { LibraryScreen(onProfile = openSettings) } }
+                    composable<CollectionRoute> { screen { CollectionScreen() } }
+                    composable<ArtistRoute> { screen { ArtistScreen() } }
+                    composable<BrowseRoute> { screen { BrowseScreen() } }
+                    composable<SettingsRoute>(
+                        enterTransition = { slideInHorizontally(SlideSpec) { it } },
+                        popExitTransition = { slideOutHorizontally(SlideSpec) { it } },
+                    ) {
+                        SettingsScreen(themeMode, onThemeMode, accentIndex, onAccent, onBack = { nav.popBackStack() })
+                    }
                 }
             }
 
             FloatingBars(
                 current = currentTab,
                 onSelect = { tab ->
+                    currentTab = tab
                     nav.navigate(tab.route) {
                         popUpTo(nav.graph.findStartDestination().id) { saveState = true }
                         launchSingleTop = true
@@ -150,6 +224,8 @@ fun AppRoot(
             )
 
             if (sheet.isOpen) PlayerSheet(sheet, player, playerViewModel)
+
+            TrackMenu(menuTrack, menuActions, onDismiss = { menuTrack = null })
         }
     }
 }

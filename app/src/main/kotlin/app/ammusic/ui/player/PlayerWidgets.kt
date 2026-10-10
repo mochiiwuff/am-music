@@ -87,7 +87,7 @@ private fun tone(rgb: Int, lightness: Float): Color {
 
 /** Extrait les couleurs de la pochette, puis les fait glisser doucement vers les nouvelles à chaque titre. */
 @Composable
-fun rememberPlayerColors(artworkUrl: String?): PlayerColors {
+fun rememberPlayerColors(artworkUrl: String?, stiffness: Float = 18f): PlayerColors {
     val context = LocalContext.current
     var target by remember { mutableStateOf(DefaultColors) }
     LaunchedEffect(artworkUrl) {
@@ -104,7 +104,7 @@ fun rememberPlayerColors(artworkUrl: String?): PlayerColors {
             )
         }
     }
-    val slow = spring<Color>(stiffness = 18f)
+    val slow = spring<Color>(stiffness = stiffness)
     val base by animateColorAsState(target.base, slow, label = "base")
     val glow by animateColorAsState(target.glow, slow, label = "glow")
     val shade by animateColorAsState(target.shade, slow, label = "shade")

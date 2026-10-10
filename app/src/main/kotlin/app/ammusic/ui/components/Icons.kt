@@ -108,4 +108,29 @@ object AmIcons {
     }
     val Download by lazy { icon("Download", Part(circle(12f, 12f, 8.5f)), Part("M12 7.6 V15.6"), Part("M8.6 12.4 L12 15.8 L15.4 12.4")) }
     val Clock by lazy { icon("Clock", Part(circle(12f, 12f, 8.5f)), Part("M12 7.4 V12 L15.2 13.9")) }
+
+    val PlayNext by lazy {
+        icon("PlayNext", Part("M4 4.8 L8 7 L4 9.2 Z", fill = true, stroke = 1.4f), Part("M11.5 7 H20"), Part("M4 12.5 H20"), Part("M4 18 H20"))
+    }
+    val QueueAdd by lazy {
+        icon("QueueAdd", Part("M4 6 H20"), Part("M4 11.5 H20"), Part("M4 14.8 L8 17 L4 19.2 Z", fill = true, stroke = 1.4f), Part("M11.5 17 H20"))
+    }
+    val Radio by lazy {
+        icon(
+            "Radio",
+            Part(circle(12f, 12f, 1.6f), fill = true, stroke = 0f),
+            Part("M8.3 8.3 A5.2 5.2 0 0 0 8.3 15.7"),
+            Part("M15.7 8.3 A5.2 5.2 0 0 1 15.7 15.7"),
+            Part("M5.6 5.6 A9 9 0 0 0 5.6 18.4"),
+            Part("M18.4 5.6 A9 9 0 0 1 18.4 18.4"),
+        )
+    }
+    val Share by lazy {
+        icon(
+            "Share",
+            Part("M12 3.6 V14.2"),
+            Part("M8.4 7 L12 3.6 L15.6 7"),
+            Part("M7.8 10.6 H6.4 A1.6 1.6 0 0 0 4.8 12.2 V18.6 A1.6 1.6 0 0 0 6.4 20.2 H17.6 A1.6 1.6 0 0 0 19.2 18.6 V12.2 A1.6 1.6 0 0 0 17.6 10.6 H16.2"),
+        )
+    }
 }

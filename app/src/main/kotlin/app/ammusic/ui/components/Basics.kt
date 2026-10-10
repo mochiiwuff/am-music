@@ -1,10 +1,14 @@
 package app.ammusic.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -97,6 +101,7 @@ fun Modifier.pressable(
     scale: Float = 0.96f,
     haptic: Boolean = false,
     label: String? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ): Modifier = composed {
     val interaction = remember { MutableInteractionSource() }
@@ -107,11 +112,45 @@ fun Modifier.pressable(
         label = "press",
     )
     val haptics = LocalHapticFeedback.current
-    graphicsLayer { scaleX = current; scaleY = current }
-        .clickable(interactionSource = interaction, indication = null, onClickLabel = label) {
-            if (haptic) haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-            onClick()
+    val click = {
+        if (haptic) haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+        onClick()
+    }
+    val scaled = graphicsLayer { scaleX = current; scaleY = current }
+    if (onLongClick == null) {
+        scaled.clickable(interactionSource = interaction, indication = null, onClickLabel = label, onClick = click)
+    } else {
+        scaled.combinedClickable(
+            interactionSource = interaction,
+            indication = null,
+            onClickLabel = label,
+            onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onLongClick()
+            },
+            onClick = click,
+        )
+    }
+}
+
+/**
+ * Apparition en cascade : l'élément monte et s'éclaircit, un peu après le précédent ([index]).
+ * [enabled] n'est lu qu'à la première composition : le passer à faux une fois la liste affichée,
+ * pour que les lignes découvertes en défilant n'arrivent pas en retard.
+ */
+fun Modifier.cascade(index: Int, enabled: Boolean): Modifier = composed {
+    val animate = remember { enabled }
+    val progress = remember { Animatable(if (animate) 0f else 1f) }
+    if (animate) {
+        LaunchedEffect(Unit) {
+            delay(index.coerceAtMost(12) * 26L)
+            progress.animateTo(1f, spring(dampingRatio = 0.9f, stiffness = 240f))
         }
+    }
+    graphicsLayer {
+        alpha = progress.value.coerceIn(0f, 1f)
+        translationY = (1f - progress.value) * 16.dp.toPx()
+    }
 }
 
 /** Surface en verre dépoli : floute ce qui défile derrière. */
@@ -177,9 +216,17 @@ fun Artwork(seed: Int, modifier: Modifier = Modifier, corner: Dp = 10.dp, elevat
     )
 }
 
+/** Titre de section. Avec [onMore], toute la ligne devient un bouton « tout voir » (chevron à droite). */
 @Composable
-fun SectionHeader(title: String, modifier: Modifier = Modifier, top: Dp = 32.dp) {
-    Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 12.dp)) {
-        AmText(title, style = AmTheme.type.section, maxLines = 2)
+fun SectionHeader(title: String, modifier: Modifier = Modifier, top: Dp = 32.dp, onMore: (() -> Unit)? = null) {
+    val more = if (onMore != null) Modifier.pressable(scale = 0.98f, label = "Tout voir", onClick = onMore) else Modifier
+    Row(
+        modifier.fillMaxWidth().padding(top = top).then(more).padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AmText(title, style = AmTheme.type.section, maxLines = 2, modifier = Modifier.weight(1f, fill = false))
+        if (onMore != null) {
+            AmIcon(AmIcons.ChevronRight, tint = AmTheme.colors.textTertiary, size = 20.dp, modifier = Modifier.padding(start = 2.dp, top = 2.dp))
+        }
     }
 }

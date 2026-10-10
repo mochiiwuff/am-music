@@ -3,6 +3,7 @@ package app.ammusic.playback
 import android.content.ComponentName
 import android.content.Context
 import androidx.core.net.toUri
+import androidx.core.os.bundleOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -75,6 +76,39 @@ class PlayerController @Inject constructor(
         player.prepare()
         player.play()
         extendQueue(player)
+    }
+
+    /**
+     * Lance une liste (album, playlist) à partir de [startIndex]. [shuffle] force le mode aléatoire
+     * (on part alors d'un titre au hasard) ou l'arrêt de ce mode ; `null` laisse le réglage tel quel.
+     */
+    fun playAll(tracks: List<YtTrack>, startIndex: Int = 0, shuffle: Boolean? = null) = withPlayer { player ->
+        val items = tracks.distinctBy { it.id }
+        if (items.isEmpty()) return@withPlayer
+        radio?.cancel()
+        if (shuffle != null) player.shuffleModeEnabled = shuffle
+        val start = if (shuffle == true) items.indices.random() else items.indexOfFirst { it.id == tracks.getOrNull(startIndex)?.id }
+        player.setMediaItems(items.map { it.toMediaItem() }, start.coerceAtLeast(0), C.TIME_UNSET)
+        player.prepare()
+        player.play()
+        extendQueue(player)
+    }
+
+    /** Place [track] juste après le titre en cours. */
+    fun playNext(track: YtTrack) = insert(track) { player -> player.currentMediaItemIndex + 1 }
+
+    /** Place [track] à la fin de la file. */
+    fun addToQueue(track: YtTrack) = insert(track) { player -> player.mediaItemCount }
+
+    private fun insert(track: YtTrack, position: (MediaController) -> Int) = withPlayer { player ->
+        if (player.mediaItemCount == 0) {
+            play(track)
+            return@withPlayer
+        }
+        if (player.currentMediaItem?.mediaId == track.id) return@withPlayer
+        val existing = (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == track.id }
+        if (existing != null) player.removeMediaItem(existing)
+        player.addMediaItem(position(player).coerceAtMost(player.mediaItemCount), track.toMediaItem())
     }
 
     fun toggle() = withPlayer { player ->
@@ -197,7 +231,12 @@ private fun MediaItem.toTrack() = YtTrack(
     artists = mediaMetadata.artist?.toString().orEmpty(),
     album = mediaMetadata.albumTitle?.toString(),
     thumbnail = mediaMetadata.artworkUri?.toString(),
+    artistId = mediaMetadata.extras?.getString(ArtistIdKey),
+    albumId = mediaMetadata.extras?.getString(AlbumIdKey),
 )
+
+private const val ArtistIdKey = "artistId"
+private const val AlbumIdKey = "albumId"
 
 private fun YtTrack.toMediaItem(): MediaItem = MediaItem.Builder()
     .setMediaId(id)
@@ -207,6 +246,7 @@ private fun YtTrack.toMediaItem(): MediaItem = MediaItem.Builder()
             .setArtist(artists)
             .setAlbumTitle(album)
             .setArtworkUri(thumbnail?.thumbnailAt(544)?.toUri())
+            .setExtras(bundleOf(ArtistIdKey to artistId, AlbumIdKey to albumId))
             .build(),
     )
     .build()
