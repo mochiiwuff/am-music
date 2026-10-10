@@ -8,6 +8,7 @@ coreKtx = "1.19.1"
 lifecycle = "2.11.0"
 navigation = "2.10.2"
 hilt = "2.60.1"
+room = "2.8.5"
 serializationJson = "1.11.0"
 haze = "2.0.1"
 media3 = "1.11.1"
@@ -52,6 +53,9 @@ compose-foundation = { module = "androidx.compose.foundation:foundation" }
 compose-animation = { module = "androidx.compose.animation:animation" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 haze-blur = { module = "dev.chrisbanes.haze:haze-blur", version.ref = "haze" }

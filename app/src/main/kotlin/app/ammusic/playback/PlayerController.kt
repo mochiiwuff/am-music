@@ -11,6 +11,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.ammusic.data.MusicRepository
+import app.ammusic.data.library.LibraryRepository
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.model.thumbnailAt
 import com.google.common.util.concurrent.MoreExecutors
@@ -52,6 +53,7 @@ data class PlayerState(
 class PlayerController @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val repository: MusicRepository,
+    private val library: LibraryRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlayerState())
@@ -60,13 +62,13 @@ class PlayerController @Inject constructor(
     private var connection: Deferred<MediaController>? = null
     private var player: MediaController? = null
     private var radio: Job? = null
-    private val liked = HashSet<String>()
 
     /** Position de lecture actuelle, à lire depuis l'interface (elle change en continu). */
     val positionMs: Long get() = player?.currentPosition ?: 0L
 
     init {
         scope.launch { runCatching { controller() } }
+        scope.launch { library.likedIds.collect { player?.let(::publish) } }
     }
 
     /** Lance [track] ; la radio YouTube Music de ce titre complète ensuite la file, sans fin. */
@@ -151,11 +153,9 @@ class PlayerController @Inject constructor(
         }
     }
 
-    /** « J'aime » gardé en mémoire seulement : la vraie bibliothèque arrive en phase 5. */
+    /** Ajoute le titre en cours aux titres aimés de la bibliothèque, ou l'en retire. */
     fun toggleLike() = withPlayer { player ->
-        val id = player.currentMediaItem?.mediaId ?: return@withPlayer
-        if (!liked.add(id)) liked.remove(id)
-        publish(player)
+        player.currentMediaItem?.toTrack()?.let(library::toggleLike)
     }
 
     private fun withPlayer(block: (MediaController) -> Unit) {
@@ -187,7 +187,10 @@ class PlayerController @Inject constructor(
             controller.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) {
                     publish(player)
-                    if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) extendQueue(controller)
+                    if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                        extendQueue(controller)
+                        controller.currentMediaItem?.toTrack()?.let(library::recordPlay)
+                    }
                 }
             })
             player = controller
@@ -220,7 +223,7 @@ class PlayerController @Inject constructor(
                 Player.REPEAT_MODE_ONE -> RepeatMode.One
                 else -> RepeatMode.Off
             },
-            liked = current?.id in liked,
+            liked = current?.id in library.likedIds.value,
         )
     }
 }

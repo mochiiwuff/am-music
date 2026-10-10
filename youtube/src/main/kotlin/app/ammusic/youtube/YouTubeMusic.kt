@@ -1,6 +1,7 @@
 package app.ammusic.youtube
 
 import android.content.Context
+import app.ammusic.youtube.model.YtAccount
 import app.ammusic.youtube.model.YtAlbum
 import app.ammusic.youtube.model.YtAlbumPage
 import app.ammusic.youtube.model.YtArtist
@@ -13,6 +14,7 @@ import app.ammusic.youtube.model.YtPlaylistPage
 import app.ammusic.youtube.model.YtSearchFilter
 import app.ammusic.youtube.model.YtSearchPage
 import app.ammusic.youtube.model.YtSection
+import app.ammusic.youtube.model.YtSession
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.stream.InnerTubeXSource
 import app.ammusic.youtube.stream.NewPipeSource
@@ -25,6 +27,8 @@ import com.metrolist.innertube.models.PlaylistItem
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.WatchEndpoint
 import com.metrolist.innertube.models.YTItem
+import com.metrolist.innertube.utils.completed
+import com.metrolist.innertube.utils.parseCookieString
 import com.metrolist.innertubex.models.YouTubeLocale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -40,6 +44,7 @@ object YouTubeMusic {
     fun init(context: Context, country: String = "FR", language: String = "fr") {
         YouTube.locale = YouTubeLocale(gl = country, hl = language)
         streams = StreamResolver(listOf(InnerTubeXSource(context), NewPipeSource()))
+        guestVisitorData = YouTube.visitorData
     }
 
     suspend fun home(): Result<List<YtSection>> = io {
@@ -155,6 +160,70 @@ object YouTubeMusic {
         }
     }
 
+    // ----- Compte -----
+
+    val isSignedIn: Boolean get() = YouTube.cookie?.let { "SAPISID" in parseCookieString(it) } == true
+
+    /** Passe en mode connecté avec [session], ou revient en mode invité avec `null`. */
+    fun signIn(session: YtSession?) {
+        YouTube.cookie = session?.cookie
+        YouTube.dataSyncId = session?.dataSyncId?.let { id ->
+            // La page donne « compte||canal » : on garde la partie qui désigne le canal utilisé.
+            id.takeIf { "||" !in it } ?: id.takeIf { it.endsWith("||") }?.substringBefore("||") ?: id.substringAfter("||")
+        }
+        YouTube.visitorData = session?.visitorData ?: guestVisitorData
+        YouTube.useLoginForBrowse = session != null
+    }
+
+    suspend fun account(): Result<YtAccount> = io {
+        YouTube.accountInfo().map { YtAccount(it.name, it.email, it.thumbnailUrl) }
+    }
+
+    suspend fun likedTracks(): Result<List<YtTrack>> = io {
+        YouTube.playlist("LM").completed().map { page -> page.songs.map { it.toTrack() }.distinctBy { it.id } }
+    }
+
+    /** Playlists de la bibliothèque du compte : les siennes ([YtPlaylist.editable]) et celles enregistrées. */
+    suspend fun libraryPlaylists(): Result<List<YtPlaylist>> = io {
+        YouTube.library("FEmusic_liked_playlists").completed().map { page ->
+            page.items.filterIsInstance<PlaylistItem>().filterNot { it.id in AutoPlaylists }.map { it.toPlaylist() }
+        }
+    }
+
+    suspend fun libraryAlbums(): Result<List<YtAlbum>> = io {
+        YouTube.library("FEmusic_liked_albums").completed().map { page -> page.items.filterIsInstance<AlbumItem>().map { it.toAlbum() } }
+    }
+
+    suspend fun libraryArtists(): Result<List<YtArtist>> = io {
+        YouTube.library("FEmusic_library_corpus_artists").completed().map { page ->
+            page.items.filterIsInstance<ArtistItem>().map { YtArtist(it.channelId ?: it.id.removePrefix("MPLA"), it.title, it.thumbnail) }
+        }
+    }
+
+    suspend fun like(videoId: String, like: Boolean): Result<Unit> = io { YouTube.likeVideo(videoId, like).map { } }
+
+    /** Ajoute ou retire de la bibliothèque un album (par son `playlistId`) ou une playlist. */
+    suspend fun save(playlistId: String, save: Boolean): Result<Unit> = io { YouTube.likePlaylist(playlistId, save).map { } }
+
+    suspend fun follow(channelId: String, follow: Boolean): Result<Unit> = io { YouTube.subscribeChannel(channelId, follow).map { } }
+
+    suspend fun createPlaylist(title: String): Result<String> = io { runCatching { YouTube.createPlaylist(title) } }
+
+    suspend fun renamePlaylist(playlistId: String, title: String): Result<Unit> = io { YouTube.renamePlaylist(playlistId, title).map { } }
+
+    suspend fun deletePlaylist(playlistId: String): Result<Unit> = io { YouTube.deletePlaylist(playlistId).map { } }
+
+    suspend fun addToPlaylist(playlistId: String, videoId: String): Result<Unit> = io { YouTube.addToPlaylist(playlistId, videoId).map { } }
+
+    suspend fun removeFromPlaylist(playlistId: String, videoId: String, setVideoId: String): Result<Unit> = io {
+        YouTube.removeFromPlaylist(playlistId, videoId, setVideoId).map { }
+    }
+
+    /** « Titres aimés » et « Épisodes pour plus tard » : listes automatiques, gérées à part. */
+    private val AutoPlaylists = setOf("LM", "SE")
+
+    private var guestVisitorData: String? = null
+
     private fun section(title: String, items: List<YTItem>): YtSection? =
         YtSection(title, items.toItems()).takeIf { it.items.isNotEmpty() }
 
@@ -169,6 +238,7 @@ object YouTubeMusic {
         durationSeconds = duration,
         artistId = artists.firstNotNullOfOrNull { it.id },
         albumId = album?.id,
+        setVideoId = setVideoId,
     )
 
     private fun AlbumItem.toAlbum() = YtAlbum(
@@ -181,7 +251,7 @@ object YouTubeMusic {
         year = year,
     )
 
-    private fun PlaylistItem.toPlaylist() = YtPlaylist(id, title, author?.name ?: songCountText.orEmpty(), thumbnail)
+    private fun PlaylistItem.toPlaylist() = YtPlaylist(id, title, author?.name ?: songCountText.orEmpty(), thumbnail, isEditable)
 
     /** Podcasts et épisodes sont ignorés : l'appli ne gère que la musique. */
     private fun YTItem.toItem(): YtItem? = when (this) {

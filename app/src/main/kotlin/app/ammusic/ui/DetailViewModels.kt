@@ -5,9 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import app.ammusic.data.MusicRepository
+import app.ammusic.data.library.LibraryRepository
 import app.ammusic.youtube.model.YtAlbum
+import app.ammusic.youtube.model.YtArtist
 import app.ammusic.youtube.model.YtArtistPage
 import app.ammusic.youtube.model.YtBrowsePage
+import app.ammusic.youtube.model.YtPlaylist
 import app.ammusic.youtube.model.YtTrack
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -34,17 +37,24 @@ data class CollectionState(
     val tracks: List<YtTrack> = emptyList(),
     val otherVersions: List<YtAlbum> = emptyList(),
     val status: LoadStatus = LoadStatus.Loading,
+    /** `playlistId` de l'album : c'est lui que YouTube attend pour l'ajouter à la bibliothèque. */
+    val playlistId: String = "",
+    /** Playlist à soi (du compte ou du téléphone) : on peut la renommer, la supprimer, en retirer des titres. */
+    val editable: Boolean = false,
 )
 
 @HiltViewModel
 class CollectionViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val repository: MusicRepository,
+    private val library: LibraryRepository,
 ) : ViewModel() {
     val route = savedState.toRoute<CollectionRoute>()
+    private val local = !route.album && library.isLocal(route.id)
 
     private val _state = MutableStateFlow(CollectionState(route.album, route.title, route.subtitle, route.thumbnail))
     val state: StateFlow<CollectionState> = _state.asStateFlow()
+    val savedIds = library.savedIds
     private var job: Job? = null
 
     init {
@@ -54,7 +64,52 @@ class CollectionViewModel @Inject constructor(
     fun load() {
         job?.cancel()
         _state.update { it.copy(status = LoadStatus.Loading) }
-        job = viewModelScope.launch { if (route.album) loadAlbum() else loadPlaylist() }
+        job = viewModelScope.launch {
+            when {
+                local -> watchLocal()
+                route.album -> loadAlbum()
+                else -> loadPlaylist()
+            }
+        }
+    }
+
+    /** Playlist du téléphone : la page suit la base en direct. */
+    private suspend fun watchLocal() {
+        library.localPlaylist(route.id).collect { (playlist, tracks) ->
+            _state.update {
+                it.copy(
+                    title = playlist?.title ?: it.title,
+                    subtitle = playlist?.subtitle ?: it.subtitle,
+                    thumbnail = playlist?.thumbnail ?: it.thumbnail,
+                    tracks = tracks,
+                    editable = true,
+                    status = LoadStatus.Ready,
+                )
+            }
+        }
+    }
+
+    /** Ajoute l'album ou la playlist à la bibliothèque, ou l'en retire. */
+    fun toggleSaved() {
+        val current = _state.value
+        if (current.isAlbum) {
+            library.toggleAlbum(YtAlbum(route.id, current.playlistId, current.title, current.subtitle, current.thumbnail, current.artistId, current.year))
+        } else {
+            library.togglePlaylist(YtPlaylist(route.id, current.title, current.subtitle, current.thumbnail))
+        }
+    }
+
+    fun rename(title: String) {
+        if (title.isBlank()) return
+        _state.update { it.copy(title = title.trim()) }
+        library.renamePlaylist(route.id, title.trim())
+    }
+
+    fun delete() = library.deletePlaylist(route.id)
+
+    fun remove(track: YtTrack) {
+        if (!local) _state.update { it.copy(tracks = it.tracks - track) }
+        library.removeFromPlaylist(route.id, track)
     }
 
     private suspend fun loadAlbum() {
@@ -68,6 +123,7 @@ class CollectionViewModel @Inject constructor(
                 year = page.album.year,
                 tracks = page.tracks,
                 otherVersions = page.otherVersions,
+                playlistId = page.album.playlistId,
                 status = LoadStatus.Ready,
             )
         }
@@ -82,6 +138,7 @@ class CollectionViewModel @Inject constructor(
                 subtitle = page.playlist.subtitle.ifBlank { it.subtitle },
                 thumbnail = it.thumbnail ?: page.playlist.thumbnail,
                 description = page.description,
+                editable = page.playlist.editable,
                 tracks = page.tracks,
                 status = LoadStatus.Ready,
             )
@@ -109,11 +166,16 @@ data class ArtistState(
 class ArtistViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val repository: MusicRepository,
+    private val library: LibraryRepository,
 ) : ViewModel() {
     val route = savedState.toRoute<ArtistRoute>()
 
     private val _state = MutableStateFlow(ArtistState(route.name, route.thumbnail))
     val state: StateFlow<ArtistState> = _state.asStateFlow()
+    val savedIds = library.savedIds
+
+    /** Suit l'artiste (il rejoint la bibliothèque), ou cesse de le suivre. */
+    fun toggleFollow() = library.toggleArtist(YtArtist(route.id, _state.value.name, _state.value.thumbnail))
 
     init {
         load()

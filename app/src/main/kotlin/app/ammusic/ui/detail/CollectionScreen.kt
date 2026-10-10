@@ -47,6 +47,8 @@ import app.ammusic.ui.components.ErrorState
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.ItemCarousel
 import app.ammusic.ui.components.ItemRow
+import app.ammusic.ui.components.MenuAction
+import app.ammusic.ui.components.MenuRequest
 import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.LocalNowPlaying
 import app.ammusic.ui.components.NowPlayingBars
@@ -78,7 +80,41 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
         }
     }
 
-    DetailScaffold(title = state.title, state = list, revealAfter = 280.dp, underStatusBar = false) {
+    val savedIds by viewModel.savedIds.collectAsStateWithLifecycle()
+    val playlistMenu = {
+        actions.sheet(
+            MenuRequest(
+                title = state.title,
+                subtitle = count(state.tracks.size),
+                thumbnail = state.thumbnail,
+                actions = listOf(
+                    MenuAction(AmIcons.Edit, "Renommer") { actions.prompt("Renommer la playlist", state.title, viewModel::rename) },
+                    MenuAction(AmIcons.Trash, "Supprimer la playlist", destructive = true) {
+                        viewModel.delete()
+                        actions.back()
+                    },
+                ),
+            ),
+        )
+    }
+
+    DetailScaffold(
+        title = state.title,
+        state = list,
+        revealAfter = 280.dp,
+        underStatusBar = false,
+        trailing = {
+            when {
+                state.editable -> IconButton(AmIcons.More, label = "Options de la playlist", onClick = playlistMenu)
+                state.status == LoadStatus.Ready -> SaveButton(
+                    saved = route.id in savedIds,
+                    addLabel = "Ajouter à la bibliothèque",
+                    removeLabel = "Retirer de la bibliothèque",
+                    onToggle = viewModel::toggleSaved,
+                )
+            }
+        },
+    ) {
         item(key = "header", contentType = "header") {
             CollectionHeader(
                 state = state,
@@ -126,6 +162,11 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                         ItemRow(
                             item = track,
                             origin = origin,
+                            extras = if (state.editable) {
+                                listOf(MenuAction(AmIcons.Remove, "Retirer de la playlist", destructive = true) { viewModel.remove(track) })
+                            } else {
+                                emptyList()
+                            },
                             modifier = Modifier.fillMaxWidth().cascade(index, enabled = !settled).padding(horizontal = 20.dp, vertical = 6.dp),
                             onClick = play,
                         )
@@ -133,7 +174,11 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 }
                 item(key = "footer", contentType = "text") {
                     AmText(
-                        text = summary(state.tracks),
+                        text = if (state.tracks.isEmpty() && state.editable) {
+                            "Cette playlist est vide. Ajoutez-y des titres avec leur menu « ⋯ »."
+                        } else {
+                            summary(state.tracks)
+                        },
                         style = AmTheme.type.footnote,
                         color = AmTheme.colors.textTertiary,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
@@ -230,7 +275,7 @@ private fun AlbumTrackRow(index: Int, track: YtTrack, showArtists: Boolean, onCl
     Row(
         modifier
             .fillMaxWidth()
-            .pressable(scale = 0.98f, onLongClick = { actions.menu(track) }, onClick = onClick)
+            .pressable(scale = 0.98f, onLongClick = { actions.menu(track, emptyList()) }, onClick = onClick)
             .height(56.dp)
             .drawBehind {
                 val y = size.height - 0.5.dp.toPx()
@@ -250,6 +295,6 @@ private fun AlbumTrackRow(index: Int, track: YtTrack, showArtists: Boolean, onCl
             AmText(track.title, style = AmTheme.type.body.copy(fontSize = 16.sp), color = if (current) colors.accent else colors.text, maxLines = 1)
             if (showArtists) AmText(track.artists, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
-        IconButton(AmIcons.More, label = "Plus d'options", onClick = { actions.menu(track) }, tint = colors.textSecondary, iconSize = 20.dp)
+        IconButton(AmIcons.More, label = "Plus d'options", onClick = { actions.menu(track, emptyList()) }, tint = colors.textSecondary, iconSize = 20.dp)
     }
 }

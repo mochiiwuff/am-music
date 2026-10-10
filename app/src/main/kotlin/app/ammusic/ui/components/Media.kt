@@ -162,7 +162,13 @@ fun ErrorState(title: String, message: String, onRetry: () -> Unit, modifier: Mo
  * Sans [onClick], la ligne ouvre l'élément (voir [AppActions.open]) ; [origin] identifie la liste pour la pochette voyageuse.
  */
 @Composable
-fun ItemRow(item: YtItem, origin: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+fun ItemRow(
+    item: YtItem,
+    origin: String,
+    modifier: Modifier = Modifier,
+    extras: List<MenuAction> = emptyList(),
+    onClick: (() -> Unit)? = null,
+) {
     val actions = LocalActions.current
     val colors = AmTheme.colors
     val track = item as? YtTrack
@@ -170,7 +176,7 @@ fun ItemRow(item: YtItem, origin: String, modifier: Modifier = Modifier, onClick
     Row(
         modifier.pressable(
             scale = 0.98f,
-            onLongClick = track?.let { { actions.menu(it) } },
+            onLongClick = track?.let { { actions.menu(it, extras) } },
             onClick = onClick ?: { actions.open(item, origin, RowCoverSize) },
         ),
         verticalAlignment = Alignment.CenterVertically,
@@ -188,7 +194,7 @@ fun ItemRow(item: YtItem, origin: String, modifier: Modifier = Modifier, onClick
             AmText(item.caption(), style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
         if (track != null) {
-            IconButton(AmIcons.More, label = "Plus d'options", onClick = { actions.menu(track) }, tint = colors.textSecondary, iconSize = 20.dp)
+            IconButton(AmIcons.More, label = "Plus d'options", onClick = { actions.menu(track, extras) }, tint = colors.textSecondary, iconSize = 20.dp)
         } else {
             AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
         }
@@ -213,7 +219,7 @@ fun ItemCarousel(items: List<YtItem>, origin: String, modifier: Modifier = Modif
 fun ItemTile(item: YtItem, origin: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val track = item as? YtTrack
     val actions = LocalActions.current
-    Column(modifier.pressable(onLongClick = track?.let { { actions.menu(it) } }, onClick = onClick)) {
+    Column(modifier.pressable(onLongClick = track?.let { { actions.menu(it, emptyList()) } }, onClick = onClick)) {
         Cover(
             url = item.thumbnail,
             modifier = Modifier.fillMaxWidth().aspectRatio(1f),

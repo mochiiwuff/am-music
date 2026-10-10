@@ -39,6 +39,9 @@ import app.ammusic.ui.player.rememberPlayerSheetState
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Intent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -57,7 +60,16 @@ import app.ammusic.ui.components.MenuAction
 import app.ammusic.ui.components.NowPlaying
 import app.ammusic.ui.components.RowCoverSize
 import app.ammusic.ui.components.Tab
-import app.ammusic.ui.components.TrackMenu
+import app.ammusic.ui.components.MenuRequest
+import app.ammusic.ui.components.MenuSheet
+import app.ammusic.ui.components.PromptRequest
+import app.ammusic.ui.components.TextPrompt
+import app.ammusic.ui.account.LoginScreen
+import app.ammusic.ui.library.LibraryListScreen
+import androidx.navigation.toRoute
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.runtime.rememberUpdatedState
 import app.ammusic.ui.components.sharedKey
 import app.ammusic.ui.detail.ArtistScreen
 import app.ammusic.ui.detail.BrowseScreen
@@ -125,8 +137,57 @@ fun AppRoot(
 
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + FloatingBarsHeight
     val openSettings = { nav.navigate(SettingsRoute) { launchSingleTop = true } }
-    var menuTrack by remember { mutableStateOf<YtTrack?>(null) }
+    val barsAway by animateFloatAsState(
+        targetValue = if (entry?.destination?.hasRoute(LoginRoute::class) == true) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 300f),
+        label = "barsAway",
+    )
+    var sheetRequest by remember { mutableStateOf<MenuRequest?>(null) }
+    var promptRequest by remember { mutableStateOf<PromptRequest?>(null) }
     val context = LocalContext.current
+    val libraryViewModel: LibraryViewModel = hiltViewModel()
+    val playlists by libraryViewModel.playlists.collectAsStateWithLifecycle()
+    val likedIds by libraryViewModel.likedIds.collectAsStateWithLifecycle()
+
+    val openArtist = { id: String, name: String -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) }
+
+    /** Feuille « Ajouter à une playlist » : une nouvelle, ou l'une de celles que l'on peut modifier. */
+    val choosePlaylist = { track: YtTrack ->
+        val create = MenuAction(AmIcons.Plus, "Nouvelle playlist") {
+            promptRequest = PromptRequest("Nouvelle playlist", "") { title -> libraryViewModel.addToNewPlaylist(title, track) }
+        }
+        val existing = playlists.filter { it.editable }.map { playlist ->
+            MenuAction(AmIcons.Playlist, playlist.title) { libraryViewModel.addToPlaylist(playlist, track) }
+        }
+        sheetRequest = MenuRequest("Ajouter à une playlist", track.title, track.thumbnail, listOf(create) + existing)
+    }
+
+    /** Lignes du menu « ⋯ » d'un titre. */
+    val trackActions = { track: YtTrack ->
+        val liked = track.id in likedIds
+        listOfNotNull(
+            MenuAction(AmIcons.PlayNext, "Lire ensuite") { playerViewModel.playNext(track) },
+            MenuAction(AmIcons.QueueAdd, "Ajouter à la file d'attente") { playerViewModel.addToQueue(track) },
+            MenuAction(if (liked) AmIcons.HeartFilled else AmIcons.Heart, if (liked) "Retirer des titres aimés" else "Ajouter aux titres aimés") {
+                libraryViewModel.toggleLike(track)
+            },
+            MenuAction(AmIcons.Playlist, "Ajouter à une playlist") { choosePlaylist(track) },
+            MenuAction(AmIcons.Radio, "Lancer la radio du titre") { playerViewModel.play(track) },
+            track.albumId?.let { id ->
+                MenuAction(AmIcons.Album, "Voir l'album") {
+                    nav.navigate(CollectionRoute(true, id, track.album.orEmpty(), track.artists, track.thumbnail, "", RowCoverSize))
+                }
+            },
+            track.artistId?.let { id ->
+                MenuAction(AmIcons.Artist, "Voir l'artiste") { openArtist(id, track.artists.substringBefore(", ")) }
+            },
+            MenuAction(AmIcons.Share, "Partager") {
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${track.id}")
+                context.startActivity(Intent.createChooser(send, null))
+            },
+        )
+    }
+    val currentTrackActions by rememberUpdatedState(trackActions)
 
     val actions = remember(nav, playerViewModel) {
         AppActions(
@@ -140,33 +201,16 @@ fun AppRoot(
                 }
             },
             playAll = playerViewModel::playAll,
-            menu = { menuTrack = it },
+            menu = { track, extras -> sheetRequest = MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras) },
+            sheet = { sheetRequest = it },
+            prompt = { title, initial, onConfirm -> promptRequest = PromptRequest(title, initial, onConfirm) },
+            openLibrary = { kind -> nav.navigate(LibraryListRoute(kind)) },
+            openLogin = { nav.navigate(LoginRoute) { launchSingleTop = true } },
             openMood = { nav.navigate(BrowseRoute(it.browseId, it.params, it.title, artist = false)) },
             openMore = { title, browseId, params -> nav.navigate(BrowseRoute(browseId, params, title, artist = true)) },
-            openArtist = { id, name -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) },
+            openArtist = openArtist,
             back = { nav.popBackStack() },
         )
-    }
-    val menuActions: (YtTrack) -> List<MenuAction> = remember(actions) {
-        { track ->
-            listOfNotNull(
-                MenuAction(AmIcons.PlayNext, "Lire ensuite") { playerViewModel.playNext(track) },
-                MenuAction(AmIcons.QueueAdd, "Ajouter à la file d'attente") { playerViewModel.addToQueue(track) },
-                MenuAction(AmIcons.Radio, "Lancer la radio du titre") { playerViewModel.play(track) },
-                track.albumId?.let { id ->
-                    MenuAction(AmIcons.Album, "Voir l'album") {
-                        nav.navigate(CollectionRoute(true, id, track.album.orEmpty(), track.artists, track.thumbnail, "", RowCoverSize))
-                    }
-                },
-                track.artistId?.let { id ->
-                    MenuAction(AmIcons.Artist, "Voir l'artiste") { actions.openArtist(id, track.artists.substringBefore(", ")) }
-                },
-                MenuAction(AmIcons.Share, "Partager") {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${track.id}")
-                    context.startActivity(Intent.createChooser(send, null))
-                },
-            )
-        }
     }
 
     CompositionLocalProvider(
@@ -195,6 +239,13 @@ fun AppRoot(
                     composable<CollectionRoute> { screen { CollectionScreen() } }
                     composable<ArtistRoute> { screen { ArtistScreen() } }
                     composable<BrowseRoute> { screen { BrowseScreen() } }
+                    composable<LibraryListRoute> { entry -> screen { LibraryListScreen(entry.toRoute<LibraryListRoute>().kind) } }
+                    composable<LoginRoute>(
+                        enterTransition = { slideInVertically(SlideSpec) { it } },
+                        popExitTransition = { slideOutVertically(SlideSpec) { it } },
+                    ) {
+                        LoginScreen()
+                    }
                     composable<SettingsRoute>(
                         enterTransition = { slideInHorizontally(SlideSpec) { it } },
                         popExitTransition = { slideOutHorizontally(SlideSpec) { it } },
@@ -220,12 +271,17 @@ fun AppRoot(
                 sheet = sheet,
                 onTogglePlay = playerViewModel::toggle,
                 onNext = playerViewModel::next,
-                modifier = Modifier.align(Alignment.BottomCenter),
+                // Sur l'écran de connexion, les barres glissent hors de l'écran pour laisser toute la place à la page.
+                modifier = Modifier.align(Alignment.BottomCenter).graphicsLayer {
+                    translationY = barsAway * 240.dp.toPx()
+                    alpha = 1f - barsAway
+                },
             )
 
             if (sheet.isOpen) PlayerSheet(sheet, player, playerViewModel)
 
-            TrackMenu(menuTrack, menuActions, onDismiss = { menuTrack = null })
+            MenuSheet(sheetRequest, onDismiss = { sheetRequest = null })
+            TextPrompt(promptRequest, onDismiss = { promptRequest = null })
         }
     }
 }

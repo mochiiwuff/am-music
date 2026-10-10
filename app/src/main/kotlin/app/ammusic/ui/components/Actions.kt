@@ -17,8 +17,15 @@ class AppActions(
     val open: (item: YtItem, origin: String, coverSize: Int) -> Unit,
     /** Lance une liste de titres à partir de `index` ; `shuffle` : voir `PlayerController.playAll`. */
     val playAll: (tracks: List<YtTrack>, index: Int, shuffle: Boolean?) -> Unit,
-    /** Ouvre le menu « ⋯ » d'un titre. */
-    val menu: (YtTrack) -> Unit,
+    /** Ouvre le menu « ⋯ » d'un titre ; la liste ajoute des lignes propres à l'écran (« Retirer de la playlist »). */
+    val menu: (YtTrack, List<MenuAction>) -> Unit,
+    /** Ouvre une feuille de menu quelconque. */
+    val sheet: (MenuRequest) -> Unit,
+    /** Demande un texte (nom d'une playlist) : titre de la boîte, valeur de départ, suite à donner. */
+    val prompt: (title: String, initial: String, onConfirm: (String) -> Unit) -> Unit,
+    /** Ouvre une liste de la bibliothèque (voir `LibraryKind`). */
+    val openLibrary: (kind: String) -> Unit,
+    val openLogin: () -> Unit,
     val openMood: (YtMood) -> Unit,
     /** Ouvre la liste complète d'une section d'artiste. */
     val openMore: (title: String, browseId: String, params: String?) -> Unit,

@@ -2,6 +2,7 @@ package app.ammusic.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.ammusic.data.AccountStore
 import app.ammusic.data.MusicRepository
 import app.ammusic.data.SearchHistory
 import app.ammusic.playback.PlayerController
@@ -19,6 +20,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -65,12 +69,14 @@ sealed interface HomeState {
 }
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(private val repository: MusicRepository) : ViewModel() {
+class HomeViewModel @Inject constructor(private val repository: MusicRepository, account: AccountStore) : ViewModel() {
     private val _state = MutableStateFlow<HomeState>(HomeState.Loading)
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
     init {
         load()
+        // Connexion ou déconnexion : les recommandations ne sont plus les mêmes.
+        viewModelScope.launch { account.account.map { it != null }.distinctUntilChanged().drop(1).collect { load() } }
     }
 
     fun load() {

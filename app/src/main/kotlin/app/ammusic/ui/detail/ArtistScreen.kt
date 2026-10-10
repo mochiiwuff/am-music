@@ -85,7 +85,15 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
         }
     }
 
-    DetailScaffold(title = state.name, state = list, revealAfter = 250.dp, underStatusBar = true) {
+    val savedIds by viewModel.savedIds.collectAsStateWithLifecycle()
+
+    DetailScaffold(
+        title = state.name,
+        state = list,
+        revealAfter = 250.dp,
+        underStatusBar = true,
+        trailing = { SaveButton(route.id in savedIds, addLabel = "Suivre l'artiste", removeLabel = "Ne plus suivre", onToggle = viewModel::toggleFollow) },
+    ) {
         item(key = "hero", contentType = "hero") {
             ArtistHero(
                 state = state,

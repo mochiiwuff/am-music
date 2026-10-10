@@ -20,6 +20,8 @@ data class YtTrack(
     val durationSeconds: Int? = null,
     val artistId: String? = null,
     val albumId: String? = null,
+    /** Identifiant du titre dans sa playlist : YouTube le demande pour l'en retirer. */
+    val setVideoId: String? = null,
 ) : YtItem {
     override val subtitle get() = artists
     override val key get() = "t:$id"
@@ -42,6 +44,8 @@ data class YtPlaylist(
     override val title: String,
     override val subtitle: String,
     override val thumbnail: String?,
+    /** Vrai pour une playlist du compte connecté, que l'on peut renommer, supprimer et modifier. */
+    val editable: Boolean = false,
 ) : YtItem {
     override val key get() = "p:$id"
 }
@@ -68,6 +72,11 @@ data class YtArtistPage(val artist: YtArtist, val listeners: String?, val descri
 
 /** Page faite de sections : une humeur, un genre, ou la liste complète d'une section d'artiste. */
 data class YtBrowsePage(val title: String, val sections: List<YtSection>)
+
+/** Ce qu'il faut pour agir au nom d'un compte : les cookies de music.youtube.com et deux identifiants de la page. */
+data class YtSession(val cookie: String, val visitorData: String?, val dataSyncId: String?)
+
+data class YtAccount(val name: String, val email: String?, val avatar: String?)
 
 enum class YtSearchFilter { Songs, Albums, Artists, Playlists, Videos }
 

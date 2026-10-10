@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,7 +22,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.ammusic.ui.AccountViewModel
+import app.ammusic.ui.components.AmIcon
 import app.ammusic.ui.components.AmIcons
+import app.ammusic.ui.components.Cover
+import app.ammusic.ui.components.LocalActions
+import app.ammusic.ui.components.MenuAction
+import app.ammusic.ui.components.MenuRequest
+import app.ammusic.ui.components.RowCoverSize
+import app.ammusic.youtube.model.YtAccount
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.LargeTitleScreen
@@ -40,12 +51,15 @@ fun SettingsScreen(
     accentIndex: Int,
     onAccent: (Int) -> Unit,
     onBack: () -> Unit,
+    accountViewModel: AccountViewModel = hiltViewModel(),
 ) {
     val colors = AmTheme.colors
+    val account by accountViewModel.account.collectAsStateWithLifecycle()
     LargeTitleScreen(
         title = "Réglages",
         leading = { IconButton(AmIcons.ChevronLeft, label = "Retour", onClick = onBack, tint = colors.accent, iconSize = 26.dp) },
     ) {
+        item(key = "account") { AccountCard(account, onSignOut = accountViewModel::signOut) }
         item(key = "themeLabel") { Label("Thème") }
         item(key = "theme") { ThemePicker(themeMode, onThemeMode) }
         item(key = "accentLabel") { Label("Couleur d'accent") }
@@ -124,6 +138,60 @@ private fun AccentPicker(selected: Int, onSelect: (Int) -> Unit) {
                 )
                 Box(Modifier.size(32.dp).clip(CircleShape).background(color))
             }
+        }
+    }
+}
+
+/** Compte YouTube Music : invitation à se connecter, ou le compte connecté et sa déconnexion (avec confirmation). */
+@Composable
+private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
+    val colors = AmTheme.colors
+    val actions = LocalActions.current
+    val confirmSignOut = {
+        actions.sheet(
+            MenuRequest(
+                title = account?.name.orEmpty(),
+                subtitle = "Votre bibliothèque restera sur votre compte.",
+                thumbnail = account?.avatar,
+                actions = listOf(MenuAction(AmIcons.Close, "Se déconnecter", destructive = true, onClick = onSignOut)),
+            ),
+        )
+    }
+    Row(
+        Modifier
+            .padding(start = 20.dp, end = 20.dp, top = 12.dp)
+            .fillMaxWidth()
+            .pressable(scale = 0.98f, label = if (account == null) "Se connecter" else "Se déconnecter") {
+                if (account == null) actions.openLogin() else confirmSignOut()
+            }
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (account?.avatar != null) {
+            Cover(account.avatar, Modifier.size(48.dp), circle = true, requestSize = RowCoverSize)
+        } else {
+            Box(Modifier.size(48.dp).clip(CircleShape).background(colors.surfaceHigh), contentAlignment = Alignment.Center) {
+                AmIcon(AmIcons.User, tint = colors.accent, size = 24.dp)
+            }
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            AmText(account?.name ?: "Se connecter", style = AmTheme.type.headline, maxLines = 1)
+            AmText(
+                text = when {
+                    account == null -> "Vos titres aimés, playlists et recommandations YouTube Music."
+                    else -> account.email ?: "Compte YouTube Music"
+                },
+                style = AmTheme.type.footnote,
+                color = colors.textSecondary,
+                maxLines = 2,
+            )
+        }
+        if (account == null) {
+            AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
+        } else {
+            AmText("Déconnexion", style = AmTheme.type.subhead, color = colors.accent)
         }
     }
 }

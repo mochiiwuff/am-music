@@ -1,5 +1,7 @@
 package app.ammusic.ui.detail
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +59,7 @@ fun DetailScaffold(
     state: LazyListState,
     revealAfter: Dp,
     underStatusBar: Boolean,
+    trailing: (@Composable () -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val colors = AmTheme.colors
@@ -110,6 +114,19 @@ fun DetailScaffold(
                     }
                     AmIcon(AmIcons.ChevronLeft, size = 22.dp, modifier = Modifier.padding(end = 2.dp))
                 }
+                if (trailing != null) {
+                    Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).size(48.dp), contentAlignment = Alignment.Center) {
+                        if (underStatusBar) {
+                            Box(
+                                Modifier
+                                    .size(34.dp)
+                                    .graphicsLayer { alpha = 1f - collapse.value }
+                                    .drawBehind { drawCircle(colors.glass.copy(alpha = 0.62f)) },
+                            )
+                        }
+                        trailing()
+                    }
+                }
                 AmText(
                     text = title,
                     style = AmTheme.type.headline,
@@ -141,5 +158,27 @@ fun PillButton(label: String, icon: ImageVector, filled: Boolean, enabled: Boole
     ) {
         AmIcon(icon, tint = content, size = 18.dp)
         AmText(label, style = AmTheme.type.headline, color = content, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+/** Bouton « + » de la barre du haut : ajoute à la bibliothèque, puis devient une coche (toucher à nouveau retire). */
+@Composable
+fun SaveButton(saved: Boolean, addLabel: String, removeLabel: String, onToggle: () -> Unit) {
+    val turn by animateFloatAsState(if (saved) 1f else 0f, spring(dampingRatio = 0.5f, stiffness = 380f), label = "save")
+    Box(
+        Modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (saved) removeLabel else addLabel, onClick = onToggle),
+        contentAlignment = Alignment.Center,
+    ) {
+        AmIcon(
+            icon = if (saved) AmIcons.Check else AmIcons.Plus,
+            tint = if (saved) AmTheme.colors.accent else AmTheme.colors.text,
+            size = 22.dp,
+            // Un quart de tour et un léger rebond au moment où le « + » devient une coche.
+            modifier = Modifier.graphicsLayer {
+                rotationZ = (1f - turn) * -90f * if (saved) 1f else 0f
+                scaleX = 0.8f + 0.2f * if (saved) turn else 1f - turn
+                scaleY = scaleX
+            },
+        )
     }
 }

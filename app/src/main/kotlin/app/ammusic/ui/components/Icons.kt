@@ -125,6 +125,22 @@ object AmIcons {
             Part("M18.4 5.6 A9 9 0 0 1 18.4 18.4"),
         )
     }
+    val Plus by lazy { icon("Plus", Part("M12 5 V19", stroke = 2f), Part("M5 12 H19", stroke = 2f)) }
+    val Check by lazy { icon("Check", Part("M5 12.6 L10 17.4 L19 7.4", stroke = 2f)) }
+    val Edit by lazy {
+        icon("Edit", Part("M4 20 L4.8 16.2 L15.8 5.2 A1.7 1.7 0 0 1 18.2 5.2 L18.8 5.8 A1.7 1.7 0 0 1 18.8 8.2 L7.8 19.2 Z"), Part("M14 7 L17 10"))
+    }
+    val Trash by lazy {
+        icon(
+            "Trash",
+            Part("M4.5 7 H19.5"),
+            Part("M9.5 7 V5 A1 1 0 0 1 10.5 4 H13.5 A1 1 0 0 1 14.5 5 V7"),
+            Part("M6.5 7 L7.3 18.6 A1.6 1.6 0 0 0 8.9 20 H15.1 A1.6 1.6 0 0 0 16.7 18.6 L17.5 7"),
+            Part("M10.2 11 V16"),
+            Part("M13.8 11 V16"),
+        )
+    }
+    val Remove by lazy { icon("Remove", Part(circle(12f, 12f, 8.5f)), Part("M8.5 12 H15.5")) }
     val Share by lazy {
         icon(
             "Share",

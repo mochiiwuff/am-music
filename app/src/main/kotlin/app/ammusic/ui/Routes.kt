@@ -29,3 +29,9 @@ data class ArtistRoute(val id: String, val name: String, val thumbnail: String?,
 /** Humeur ou genre, ou liste complète d'une section d'artiste ([artist] vrai). */
 @Serializable
 data class BrowseRoute(val browseId: String, val params: String?, val title: String, val artist: Boolean)
+
+/** Fenêtre de connexion au compte YouTube Music. */
+@Serializable data object LoginRoute
+
+/** Une liste de la bibliothèque. [kind] : voir `LibraryKind`. */
+@Serializable data class LibraryListRoute(val kind: String)

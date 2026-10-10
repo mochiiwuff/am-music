@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,27 +40,29 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import app.ammusic.ui.theme.AmTheme
-import app.ammusic.youtube.model.YtTrack
 import kotlinx.coroutines.launch
 
-/** Une ligne du menu « ⋯ ». */
-class MenuAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
+/** Une ligne de menu. [destructive] : action qui supprime, écrite en couleur d'accent. */
+class MenuAction(val icon: ImageVector, val label: String, val destructive: Boolean = false, val onClick: () -> Unit)
+
+/** Contenu d'une feuille de menu : un en-tête (titre, sous-titre, pochette) et ses lignes. */
+class MenuRequest(val title: String, val subtitle: String, val thumbnail: String?, val actions: List<MenuAction>)
 
 /**
- * Menu « ⋯ » d'un titre : une feuille qui remonte du bas, se referme en la tirant vers le bas,
- * en touchant à côté ou avec le geste retour. [track] à `null` la referme.
+ * Feuille de menu (menu « ⋯ » d'un titre, choix d'une playlist…) : elle remonte du bas, se referme en la tirant vers le bas,
+ * en touchant à côté ou avec le geste retour. [request] à `null` la referme.
  */
 @Composable
-fun TrackMenu(track: YtTrack?, actions: (YtTrack) -> List<MenuAction>, onDismiss: () -> Unit) {
+fun MenuSheet(request: MenuRequest?, onDismiss: () -> Unit) {
     val colors = AmTheme.colors
     val scope = rememberCoroutineScope()
-    var shown by remember { mutableStateOf<YtTrack?>(null) }
+    var shown by remember { mutableStateOf<MenuRequest?>(null) }
     val progress = remember { Animatable(0f) }
     val drag = remember { Animatable(0f) }
 
-    LaunchedEffect(track) {
-        if (track != null) {
-            shown = track
+    LaunchedEffect(request) {
+        if (request != null) {
+            shown = request
             drag.snapTo(0f)
             progress.animateTo(1f, spring(dampingRatio = 1f, stiffness = 420f))
         } else {
@@ -67,9 +72,9 @@ fun TrackMenu(track: YtTrack?, actions: (YtTrack) -> List<MenuAction>, onDismiss
     }
 
     val current = shown ?: return
-    val rows = remember(current) { actions(current) }
+    val rows = current.actions
     val threshold = with(LocalDensity.current) { 96.dp.toPx() }
-    BackHandler(enabled = track != null, onBack = onDismiss)
+    BackHandler(enabled = request != null, onBack = onDismiss)
 
     Box(Modifier.fillMaxSize()) {
         Box(
@@ -108,30 +113,34 @@ fun TrackMenu(track: YtTrack?, actions: (YtTrack) -> List<MenuAction>, onDismiss
                 Cover(current.thumbnail, Modifier.size(56.dp), corner = 9.dp, requestSize = RowCoverSize)
                 Column(Modifier.padding(start = 14.dp)) {
                     AmText(current.title, style = AmTheme.type.headline, maxLines = 1)
-                    AmText(current.artists, style = AmTheme.type.subhead, color = colors.textSecondary, maxLines = 1)
+                    AmText(current.subtitle, style = AmTheme.type.subhead, color = colors.textSecondary, maxLines = 1)
                 }
             }
             Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(colors.hairline))
-            rows.forEachIndexed { index, action ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            // Les lignes arrivent l'une après l'autre, juste derrière la feuille.
-                            val reveal = ((progress.value - 0.3f - index * 0.05f) / 0.45f).coerceIn(0f, 1f)
-                            alpha = reveal
-                            translationY = (1f - reveal) * 14.dp.toPx()
-                        }
-                        .pressable(scale = 0.98f, haptic = true) {
-                            onDismiss()
-                            action.onClick()
-                        }
-                        .height(54.dp)
-                        .padding(horizontal = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AmIcon(action.icon, size = 22.dp)
-                    AmText(action.label, modifier = Modifier.padding(start = 18.dp))
+            // Une longue liste (choix d'une playlist) défile à l'intérieur de la feuille.
+            Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+                rows.forEachIndexed { index, action ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                // Les lignes arrivent l'une après l'autre, juste derrière la feuille.
+                                val reveal = ((progress.value - 0.3f - index.coerceAtMost(5) * 0.05f) / 0.45f).coerceIn(0f, 1f)
+                                alpha = reveal
+                                translationY = (1f - reveal) * 14.dp.toPx()
+                            }
+                            .pressable(scale = 0.98f, haptic = true) {
+                                onDismiss()
+                                action.onClick()
+                            }
+                            .height(54.dp)
+                            .padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val tint = if (action.destructive) colors.accent else colors.text
+                        AmIcon(action.icon, tint = tint, size = 22.dp)
+                        AmText(action.label, color = tint, maxLines = 1, modifier = Modifier.padding(start = 18.dp))
+                    }
                 }
             }
         }
