@@ -28,11 +28,6 @@ import javax.inject.Singleton
 private const val LocalPrefix = "LOCAL_"
 private const val StaleAfterMs = 10 * 60 * 1000L
 
-/**
- * Bibliothèque : titres aimés, albums, artistes, playlists, historique.
- * Tout est lu depuis la base du téléphone (rapide, disponible sans réseau). Connectée, l'appli y recopie
- * la bibliothèque du compte ([sync]) et répète chaque action auprès de YouTube ; en invité, tout reste local.
- */
 @Singleton
 class LibraryRepository @Inject constructor(@ApplicationContext context: Context) {
     private val dao = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").build().dao()
@@ -47,7 +42,6 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
 
     val likedIds: StateFlow<Set<String>> = dao.likedIds().map { it.toSet() }.stateIn(scope, SharingStarted.Eagerly, emptySet())
 
-    /** Identifiants des albums, artistes et playlists présents dans la bibliothèque. */
     val savedIds: StateFlow<Set<String>> = combine(dao.albums(), dao.artists(), dao.playlists()) { albums, artists, playlists ->
         buildSet {
             albums.forEach { add(it.id) }
@@ -83,14 +77,12 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         if (signedIn) YouTubeMusic.follow(artist.id, follow)
     }
 
-    /** Enregistre ou retire la playlist de quelqu'un d'autre. */
     fun togglePlaylist(playlist: YtPlaylist) = scope.launch {
         val save = playlist.id !in savedIds.value
         if (save) dao.upsertPlaylists(listOf(playlist.toRow(now(), PlaylistKind.Saved))) else dao.deletePlaylistRow(playlist.id)
         if (signedIn) YouTubeMusic.save(playlist.id, save)
     }
 
-    /** Crée une playlist (sur le compte si connectée, sinon sur le téléphone) et renvoie son identifiant, ou `null` en cas d'échec. */
     suspend fun createPlaylist(title: String): String? = withContext(Dispatchers.IO) {
         if (signedIn) {
             val id = YouTubeMusic.createPlaylist(title).getOrNull() ?: return@withContext null
@@ -123,7 +115,6 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         }
     }
 
-    /** Pour une playlist du compte, [YtTrack.setVideoId] doit être renseigné (il l'est sur la page de la playlist). */
     fun removeFromPlaylist(playlistId: String, track: YtTrack) = scope.launch {
         if (isLocal(playlistId)) {
             dao.deletePlaylistTrack(playlistId, track.id)
@@ -143,7 +134,6 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
 
     fun clearHistory() = scope.launch { dao.clearHistory() }
 
-    /** Recopie la bibliothèque du compte dans la base. Sans effet en mode invité, ou si [force] est faux et la dernière copie récente. */
     suspend fun sync(force: Boolean = true) = withContext(Dispatchers.IO) {
         if (!signedIn || (!force && now() - lastSync < StaleAfterMs)) return@withContext
         lastSync = now()
@@ -176,7 +166,6 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         }
     }
 
-    /** À la déconnexion : retire tout ce qui venait du compte, garde ce qui a été ajouté en invité. */
     suspend fun clearRemote() = withContext(Dispatchers.IO) {
         dao.clearRemoteLiked()
         dao.clearRemoteAlbums()
@@ -200,7 +189,6 @@ private fun YtPlaylist.toRow(addedAt: Long, kind: Int) = PlaylistRow(id, title, 
 
 private fun PlaylistRow.toPlaylist() = YtPlaylist(id, title, subtitle, thumbnail, editable = kind != PlaylistKind.Saved)
 
-/** Trace dans le journal (`adb logcat -s AmLibrary`) ce que la copie de la bibliothèque du compte a reçu, ou pourquoi elle a échoué. */
 private fun <T> Result<T>.logged(what: String, size: (T) -> Int): Result<T> = also { result ->
     result.fold(
         onSuccess = { Log.d("AmLibrary", "$what : ${size(it)} reçus") },

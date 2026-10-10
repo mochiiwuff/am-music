@@ -62,7 +62,6 @@ import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtTrack
 import kotlinx.coroutines.delay
 
-/** Page d'un album ou d'une playlist : la pochette en vedette, baignée de sa propre couleur. */
 @Composable
 fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -195,7 +194,6 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
 
 private fun count(tracks: Int) = if (tracks > 1) "$tracks titres" else "$tracks titre"
 
-/** « 12 titres · 47 min » ; la durée n'apparaît que si YouTube la donne pour chaque titre. */
 private fun summary(tracks: List<YtTrack>): String {
     val seconds = tracks.sumOf { it.durationSeconds ?: return count(tracks.size) }
     val minutes = (seconds + 30) / 60
@@ -216,7 +214,6 @@ private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tin
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
-                // Le halo remonte derrière la barre du haut, jusqu'au bord de l'écran.
                 val top = -lift.toPx()
                 drawRect(
                     brush = Brush.verticalGradient(listOf(tint.copy(alpha = strength), tint.copy(alpha = 0f)), startY = top, endY = size.height * 0.94f),
@@ -265,7 +262,6 @@ private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tin
     }
 }
 
-/** Ligne d'album : le numéro de piste à la place de la pochette (elle est déjà en haut de la page). */
 @Composable
 private fun AlbumTrackRow(index: Int, track: YtTrack, showArtists: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AmTheme.colors

@@ -23,7 +23,6 @@ import javax.inject.Inject
 
 enum class LoadStatus { Loading, Ready, Error }
 
-/** Au-delà, on arrête de demander la suite d'une playlist (20 pages d'une centaine de titres). */
 private const val MaxPlaylistPages = 20
 
 data class CollectionState(
@@ -37,9 +36,7 @@ data class CollectionState(
     val tracks: List<YtTrack> = emptyList(),
     val otherVersions: List<YtAlbum> = emptyList(),
     val status: LoadStatus = LoadStatus.Loading,
-    /** `playlistId` de l'album : c'est lui que YouTube attend pour l'ajouter à la bibliothèque. */
     val playlistId: String = "",
-    /** Playlist à soi (du compte ou du téléphone) : on peut la renommer, la supprimer, en retirer des titres. */
     val editable: Boolean = false,
 )
 
@@ -73,7 +70,6 @@ class CollectionViewModel @Inject constructor(
         }
     }
 
-    /** Playlist du téléphone : la page suit la base en direct. */
     private suspend fun watchLocal() {
         library.localPlaylist(route.id).collect { (playlist, tracks) ->
             _state.update {
@@ -89,7 +85,6 @@ class CollectionViewModel @Inject constructor(
         }
     }
 
-    /** Ajoute l'album ou la playlist à la bibliothèque, ou l'en retire. */
     fun toggleSaved() {
         val current = _state.value
         if (current.isAlbum) {
@@ -129,7 +124,6 @@ class CollectionViewModel @Inject constructor(
         }
     }
 
-    /** Affiche la première page tout de suite, puis complète la liste en arrière-plan. */
     private suspend fun loadPlaylist() {
         val page = repository.playlist(route.id).getOrElse { return fail() }
         _state.update {
@@ -174,7 +168,6 @@ class ArtistViewModel @Inject constructor(
     val state: StateFlow<ArtistState> = _state.asStateFlow()
     val savedIds = library.savedIds
 
-    /** Suit l'artiste (il rejoint la bibliothèque), ou cesse de le suivre. */
     fun toggleFollow() = library.toggleArtist(YtArtist(route.id, _state.value.name, _state.value.thumbnail))
 
     init {

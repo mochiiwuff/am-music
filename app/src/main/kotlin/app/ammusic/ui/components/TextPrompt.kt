@@ -41,10 +41,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import app.ammusic.ui.theme.AmTheme
 
-/** Demande d'un texte court : [title] de la boîte, valeur de départ, et quoi faire du texte validé. */
 class PromptRequest(val title: String, val initial: String, val onConfirm: (String) -> Unit)
 
-/** Boîte de saisie au centre de l'écran (nom d'une playlist). [request] à `null` la referme. */
 @Composable
 fun TextPrompt(request: PromptRequest?, onDismiss: () -> Unit) {
     val colors = AmTheme.colors

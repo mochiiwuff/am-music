@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Les listes de la bibliothèque, dans l'ordre où l'écran les propose. */
 object LibraryKind {
     const val Playlists = "playlists"
     const val Artists = "artists"
@@ -52,16 +51,13 @@ class LibraryViewModel @Inject constructor(private val library: LibraryRepositor
     val playlists = library.playlists.shared()
     val likedIds = library.likedIds
 
-    /** Derniers albums, playlists et artistes ajoutés, pour la grille de l'écran Bibliothèque. */
     val recent: StateFlow<List<YtItem>> = combine(library.albums, library.playlists, library.artists) { albums, playlists, artists ->
-        // Chaque liste est déjà triée du plus récent au plus ancien : on les entrelace pour un aperçu varié.
         val lists = listOf(albums, playlists, artists)
         List(lists.maxOf { it.size }) { index -> lists.mapNotNull { it.getOrNull(index) } }.flatten().take(12)
     }.shared()
 
     private fun <T> Flow<List<T>>.shared(): StateFlow<List<T>> = stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Recharge la bibliothèque du compte si la dernière copie date un peu. */
     fun refresh() {
         viewModelScope.launch { library.sync(force = false) }
     }
@@ -70,7 +66,6 @@ class LibraryViewModel @Inject constructor(private val library: LibraryRepositor
 
     fun addToPlaylist(playlist: YtPlaylist, track: YtTrack) = library.addToPlaylist(playlist.id, track)
 
-    /** Crée la playlist [title] ; [then] reçoit son identifiant si la création a réussi. */
     fun createPlaylist(title: String, then: (String) -> Unit = {}) {
         viewModelScope.launch { library.createPlaylist(title)?.let(then) }
     }

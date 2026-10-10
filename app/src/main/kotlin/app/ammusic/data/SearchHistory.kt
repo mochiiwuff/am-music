@@ -11,7 +11,6 @@ import javax.inject.Singleton
 
 private const val MaxEntries = 12
 
-/** Dernières recherches lancées, la plus récente en tête. Gardées sur le téléphone (préférences). */
 @Singleton
 class SearchHistory @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences("search", Context.MODE_PRIVATE)

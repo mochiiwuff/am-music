@@ -107,7 +107,6 @@ fun ProfileButton(onClick: () -> Unit) {
     val colors = AmTheme.colors
     val avatar = LocalAccount.current?.avatar
     Box(Modifier.size(48.dp).pressable(scale = 0.88f, label = "Réglages", onClick = onClick), contentAlignment = Alignment.Center) {
-        // Connectée : la photo du compte ; en invité : une silhouette.
         if (avatar != null) {
             Cover(avatar, Modifier.size(32.dp), circle = true, requestSize = RowCoverSize)
         } else {
@@ -170,7 +169,6 @@ private fun HeroCarousel(items: List<YtItem>, origin: String) {
     }
 }
 
-
 @Composable
 private fun TrackGrid(tracks: List<YtItem>, origin: String) {
     val rows = tracks.size.coerceIn(1, 3)
@@ -186,7 +184,6 @@ private fun TrackGrid(tracks: List<YtItem>, origin: String) {
     }
 }
 
-/** Rangée de deux tuiles aux couleurs fournies par YouTube Music. */
 @Composable
 fun MoodRow(moods: List<YtMood>, height: Int = 76) {
     val actions = LocalActions.current

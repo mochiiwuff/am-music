@@ -54,7 +54,6 @@ import dev.chrisbanes.haze.blur.hazeBlur
 
 val LocalHazeState = staticCompositionLocalOf<HazeState> { error("HazeState manquant") }
 
-/** Espace à réserver en bas des listes pour la barre d'onglets et le mini-lecteur flottants. */
 val LocalBottomInset = compositionLocalOf { 0.dp }
 
 @Composable
@@ -81,7 +80,6 @@ fun AmIcon(icon: ImageVector, modifier: Modifier = Modifier, tint: Color = AmThe
     Image(icon, contentDescription = null, modifier = modifier.size(size), colorFilter = ColorFilter.tint(tint))
 }
 
-/** Zone tactile de 48 dp autour d'une icône. */
 @Composable
 fun IconButton(
     icon: ImageVector,
@@ -96,7 +94,6 @@ fun IconButton(
     }
 }
 
-/** Clic sans ondulation Material : l'élément se resserre sous le doigt puis revient avec un ressort. */
 fun Modifier.pressable(
     scale: Float = 0.96f,
     haptic: Boolean = false,
@@ -133,11 +130,6 @@ fun Modifier.pressable(
     }
 }
 
-/**
- * Apparition en cascade : l'élément monte et s'éclaircit, un peu après le précédent ([index]).
- * [enabled] n'est lu qu'à la première composition : le passer à faux une fois la liste affichée,
- * pour que les lignes découvertes en défilant n'arrivent pas en retard.
- */
 fun Modifier.cascade(index: Int, enabled: Boolean): Modifier = composed {
     val animate = remember { enabled }
     val progress = remember { Animatable(if (animate) 0f else 1f) }
@@ -153,7 +145,6 @@ fun Modifier.cascade(index: Int, enabled: Boolean): Modifier = composed {
     }
 }
 
-/** Surface en verre dépoli : floute ce qui défile derrière. */
 @Composable
 fun Modifier.glass(shape: Shape, tintAlpha: Float = 0.6f, bordered: Boolean = true): Modifier {
     val colors = AmTheme.colors
@@ -167,7 +158,6 @@ fun Modifier.glass(shape: Shape, tintAlpha: Float = 0.6f, bordered: Boolean = tr
     return if (bordered) blurred.border(0.5.dp, colors.hairline, shape) else blurred
 }
 
-/** Pastille qui glisse derrière l'élément sélectionné d'une rangée de [count] cases égales. */
 fun Modifier.slidingPill(position: () -> Float, count: Int, color: Color, corner: Dp, inset: Dp = 4.dp): Modifier =
     drawBehind {
         val cell = size.width / count
@@ -189,7 +179,6 @@ private fun artworkColors(seed: Int): List<Color> {
     )
 }
 
-/** Pochette factice : dégradé généré à partir d'un numéro, en attendant les vraies images. */
 @Composable
 fun Artwork(seed: Int, modifier: Modifier = Modifier, corner: Dp = 10.dp, elevated: Boolean = false) {
     val colors = remember(seed) { artworkColors(seed) }
@@ -216,7 +205,6 @@ fun Artwork(seed: Int, modifier: Modifier = Modifier, corner: Dp = 10.dp, elevat
     )
 }
 
-/** Titre de section. Avec [onMore], toute la ligne devient un bouton « tout voir » (chevron à droite). */
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, top: Dp = 32.dp, onMore: (() -> Unit)? = null) {
     val more = if (onMore != null) Modifier.pressable(scale = 0.98f, label = "Tout voir", onClick = onMore) else Modifier

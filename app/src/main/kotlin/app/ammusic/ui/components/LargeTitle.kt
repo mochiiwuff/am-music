@@ -30,10 +30,6 @@ import dev.chrisbanes.haze.hazeSource
 
 private val TopBarHeight = 48.dp
 
-/**
- * Écran à grand titre : le titre défile avec le contenu, puis réapparaît en petit
- * dans la barre du haut, qui devient un verre dépoli.
- */
 @Composable
 fun LargeTitleScreen(
     title: String,

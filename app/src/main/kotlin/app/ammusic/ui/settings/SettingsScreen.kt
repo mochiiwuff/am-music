@@ -142,7 +142,6 @@ private fun AccentPicker(selected: Int, onSelect: (Int) -> Unit) {
     }
 }
 
-/** Compte YouTube Music : invitation à se connecter, ou le compte connecté et sa déconnexion (avec confirmation). */
 @Composable
 private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
     val colors = AmTheme.colors

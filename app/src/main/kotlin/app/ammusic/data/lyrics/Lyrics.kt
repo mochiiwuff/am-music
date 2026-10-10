@@ -5,17 +5,13 @@ import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
 import java.io.StringReader
 
-/** Un mot (ou une syllabe) et le moment où il est chanté. [text] porte lui-même l'espace qui le suit, s'il y en a un. */
 data class LyricWord(val text: String, val startMs: Long, val endMs: Long)
 
-/** Une ligne de paroles. [words] est vide quand la source ne donne que le début de la ligne. */
 data class LyricLine(val startMs: Long, val text: String, val words: List<LyricWord> = emptyList())
 
 sealed interface Lyrics {
-    /** Paroles calées sur la musique, ligne par ligne (et parfois mot par mot). */
     data class Synced(val lines: List<LyricLine>) : Lyrics
 
-    /** Texte seul, sans repères de temps. */
     data class Plain(val text: String) : Lyrics
 
     data object None : Lyrics
@@ -23,7 +19,6 @@ sealed interface Lyrics {
 
 private val LrcStamp = Regex("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?]")
 
-/** Lit le format LRC : `[mm:ss.cc] texte`, une ligne pouvant porter plusieurs repères. */
 fun parseLrc(lrc: String): List<LyricLine> = lrc.lineSequence().flatMap { raw ->
     val stamps = LrcStamp.findAll(raw).toList()
     val text = raw.replace(LrcStamp, "").trim()
@@ -34,7 +29,6 @@ fun parseLrc(lrc: String): List<LyricLine> = lrc.lineSequence().flatMap { raw ->
     }
 }.sortedBy { it.startMs }.toList()
 
-/** « 1:02.345 », « 00:01:02.345 », « 62.345 » ou « 62.345s » → millisecondes. */
 private fun parseClock(value: String): Long? {
     val parts = value.trim().removeSuffix("s").split(':')
     val seconds = parts.last().toDoubleOrNull() ?: return null
@@ -43,10 +37,6 @@ private fun parseClock(value: String): Long? {
     return hours * 3_600_000 + minutes * 60_000 + (seconds * 1000).toLong()
 }
 
-/**
- * Lit des paroles TTML : chaque `<p>` est une ligne, chaque `<span>` daté un mot.
- * Les chœurs (spans imbriqués) sont rangés dans la ligne qui les contient.
- */
 fun parseTtml(ttml: String): List<LyricLine> = runCatching {
     val parser = Xml.newPullParser().apply {
         setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
@@ -56,7 +46,6 @@ fun parseTtml(ttml: String): List<LyricLine> = runCatching {
     var lineStart: Long? = null
     val words = ArrayList<LyricWord>()
     val text = StringBuilder()
-    // Pour chaque span ouvert : ses repères de temps, ou `null` s'il n'en a pas.
     val spans = ArrayDeque<Pair<Long, Long>?>()
 
     fun attr(name: String): String? = (0 until parser.attributeCount).firstOrNull { parser.getAttributeName(it) == name }?.let(parser::getAttributeValue)
@@ -81,7 +70,6 @@ fun parseTtml(ttml: String): List<LyricLine> = runCatching {
                 val timing = spans.lastOrNull()
                 if (chunk.isBlank()) {
                     if (text.isNotEmpty() && !text.endsWith(' ')) text.append(' ')
-                    // L'espace qui suit un mot lui est rattaché : deux syllabes collées restent collées à l'affichage.
                     words.lastOrNull()?.takeIf { !it.text.endsWith(' ') }?.let { words[words.lastIndex] = it.copy(text = it.text + " ") }
                 } else {
                     if (timing != null) words += LyricWord(chunk.trim(), timing.first, timing.second)
@@ -104,18 +92,12 @@ fun parseTtml(ttml: String): List<LyricLine> = runCatching {
 
 private fun String.plain(): String = lowercase().filter { it.isLetterOrDigit() }
 
-/**
- * Recale des paroles « mot à mot » ([detailed]) sur des paroles de référence ([reference]) : on retrouve les lignes
- * communes, dans l'ordre, et on mesure leur écart. Si l'écart est le même partout (à une demi-seconde près),
- * tout est décalé d'autant ; sinon c'est une autre version du titre, et on renonce (`null`).
- */
 fun alignTo(reference: List<LyricLine>, detailed: List<LyricLine>): List<LyricLine>? {
     val gaps = ArrayList<Long>()
     var from = 0
     for (line in detailed) {
         val text = line.text.plain()
         if (text.length < 4) continue
-        // La même phrase revient souvent (refrain) : on ne cherche que dans les quelques lignes qui suivent la dernière trouvée.
         val index = (from until minOf(from + 8, reference.size)).firstOrNull { reference[it].text.plain() == text } ?: continue
         gaps += reference[index].startMs - line.startMs
         from = index + 1

@@ -12,7 +12,6 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
-/** Fiche d'un titre, partagée par les titres aimés, l'historique et les playlists locales. */
 @Entity(tableName = "tracks")
 data class TrackRow(
     @PrimaryKey val id: String,
@@ -25,7 +24,6 @@ data class TrackRow(
     val albumId: String?,
 )
 
-/** [local] : ajouté sans compte, donc conservé quand la bibliothèque du compte est rechargée. */
 @Entity(tableName = "liked")
 data class LikedRow(@PrimaryKey val trackId: String, val addedAt: Long, val local: Boolean)
 
@@ -48,7 +46,6 @@ data class AlbumRow(
 @Entity(tableName = "artists")
 data class ArtistRow(@PrimaryKey val id: String, val name: String, val thumbnail: String?, val addedAt: Long, val local: Boolean)
 
-/** [kind] : voir [PlaylistKind]. */
 @Entity(tableName = "playlists")
 data class PlaylistRow(
     @PrimaryKey val id: String,
@@ -60,13 +57,10 @@ data class PlaylistRow(
 )
 
 object PlaylistKind {
-    /** Créée sur le téléphone, sans compte : ses titres sont dans `playlist_tracks`. */
     const val Local = 0
 
-    /** Playlist du compte connecté, modifiable ; ses titres restent chez YouTube. */
     const val Mine = 1
 
-    /** Playlist de quelqu'un d'autre, enregistrée dans la bibliothèque. */
     const val Saved = 2
 }
 
@@ -78,7 +72,6 @@ abstract class LibraryDao {
     @Upsert
     abstract suspend fun upsertTracks(tracks: List<TrackRow>)
 
-    // Titres aimés
     @Query("SELECT tracks.* FROM liked JOIN tracks ON tracks.id = liked.trackId ORDER BY liked.addedAt DESC")
     abstract fun liked(): Flow<List<TrackRow>>
 
@@ -101,7 +94,6 @@ abstract class LibraryDao {
         insertLiked(rows)
     }
 
-    // Historique
     @Upsert
     abstract suspend fun upsertHistory(row: HistoryRow)
 
@@ -111,7 +103,6 @@ abstract class LibraryDao {
     @Query("DELETE FROM history")
     abstract suspend fun clearHistory()
 
-    // Albums
     @Query("SELECT * FROM albums ORDER BY addedAt DESC")
     abstract fun albums(): Flow<List<AlbumRow>>
 
@@ -130,7 +121,6 @@ abstract class LibraryDao {
         insertAlbums(rows)
     }
 
-    // Artistes
     @Query("SELECT * FROM artists ORDER BY addedAt DESC")
     abstract fun artists(): Flow<List<ArtistRow>>
 
@@ -149,7 +139,6 @@ abstract class LibraryDao {
         insertArtists(rows)
     }
 
-    // Playlists
     @Query("SELECT * FROM playlists ORDER BY addedAt DESC")
     abstract fun playlists(): Flow<List<PlaylistRow>>
 

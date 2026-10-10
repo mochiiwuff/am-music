@@ -35,7 +35,7 @@ class StreamResolverTest {
         resolver.resolve("id")
         resolver.resolve("id")
         assertEquals(1, source.calls)
-        time = 950_000L // moins d'une minute avant l'expiration
+        time = 950_000L
         resolver.resolve("id")
         assertEquals(2, source.calls)
     }

@@ -13,7 +13,6 @@ import app.ammusic.youtube.model.YtTrack
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Accès aux contenus YouTube Music pour les écrans. Les humeurs sont gardées en mémoire (elles changent rarement). */
 @Singleton
 class MusicRepository @Inject constructor() {
     private var moods: List<YtMood>? = null

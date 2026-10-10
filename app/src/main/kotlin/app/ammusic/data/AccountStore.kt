@@ -39,10 +39,6 @@ private data class SavedAccount(
     val avatar: String?,
 )
 
-/**
- * Compte YouTube Music connecté (ou aucun : mode invité).
- * Les cookies sont enregistrés chiffrés, avec une clé gardée par l'Android Keystore : elle ne sort jamais du téléphone.
- */
 @Singleton
 class AccountStore @Inject constructor(
     @ApplicationContext context: Context,
@@ -53,7 +49,6 @@ class AccountStore @Inject constructor(
     private val _account = MutableStateFlow<YtAccount?>(null)
     val account: StateFlow<YtAccount?> = _account.asStateFlow()
 
-    /** Au démarrage de l'appli : reprend la session enregistrée, avant toute requête à YouTube. */
     fun restore() {
         val saved = prefs.getString(Key, null)?.let(::decrypt)?.let { runCatching { Json.decodeFromString<SavedAccount>(it) }.getOrNull() } ?: return
         YouTubeMusic.signIn(YtSession(saved.cookie, saved.visitorData, saved.dataSyncId))
@@ -61,7 +56,6 @@ class AccountStore @Inject constructor(
         scope.launch { library.sync() }
     }
 
-    /** Appelé par l'écran de connexion une fois les cookies récupérés. */
     suspend fun signIn(session: YtSession) {
         YouTubeMusic.signIn(session)
         val info = YouTubeMusic.account().getOrNull() ?: YtAccount("Mon compte", null, null)
@@ -71,7 +65,6 @@ class AccountStore @Inject constructor(
         scope.launch { library.sync() }
     }
 
-    /** Efface la session, les cookies de la fenêtre de connexion et ce qui venait du compte dans la bibliothèque. */
     suspend fun signOut() {
         YouTubeMusic.signIn(null)
         prefs.edit { remove(Key) }
@@ -91,7 +84,6 @@ class AccountStore @Inject constructor(
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply { init(spec) }.generateKey()
     }
 
-    /** Résultat : le vecteur d'initialisation (12 octets) suivi du texte chiffré, en Base64. */
     private fun encrypt(text: String): String {
         val cipher = Cipher.getInstance(Transformation).apply { init(Cipher.ENCRYPT_MODE, secretKey()) }
         return Base64.encodeToString(cipher.iv + cipher.doFinal(text.toByteArray()), Base64.NO_WRAP)

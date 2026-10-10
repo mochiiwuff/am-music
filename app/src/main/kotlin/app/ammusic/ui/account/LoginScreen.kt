@@ -44,16 +44,11 @@ import kotlinx.serialization.json.jsonPrimitive
 private const val LoginUrl = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"
 private const val MusicUrl = "https://music.youtube.com"
 
-/** Lit dans la page les deux identifiants que YouTube Music attend en plus des cookies. */
 private const val ConfigScript =
     "(function(){var c=window.yt&&window.yt.config_;return c&&c.VISITOR_DATA?JSON.stringify({v:c.VISITOR_DATA,d:c.DATASYNC_ID||null}):null})()"
 
 private const val MaxAttempts = 12
 
-/**
- * Connexion au compte : la page de Google s'affiche dans une fenêtre web, l'appli ne voit jamais le mot de passe.
- * Une fois arrivé sur music.youtube.com, elle récupère les cookies de la session et referme l'écran.
- */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
@@ -79,7 +74,6 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
                         settings.domStorageEnabled = true
                         CookieManager.getInstance().setAcceptCookie(true)
                         webViewClient = object : WebViewClient() {
-                            // Dès que Google renvoie vers YouTube Music, on masque la page : le site n'a pas à s'afficher.
                             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                                 if (url.isMusicSite()) arrived = true
                             }
@@ -95,7 +89,6 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
                                         signedIn = true
                                         viewModel.signIn(session, onDone = actions.back)
                                     },
-                                    // Arrivé sur le site sans être connecté : retour à la page de connexion.
                                     onMissing = {
                                         collecting = false
                                         arrived = false
@@ -125,11 +118,6 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
     }
 }
 
-/**
- * Attend que la session soit complète : le cookie `SAPISID` (preuve de connexion) et les identifiants de la page,
- * qui n'apparaissent qu'un instant après la fin du chargement. Sans eux au bout de [MaxAttempts] essais, on se contente des cookies ;
- * sans cookie de connexion, [onMissing] est appelé.
- */
 private fun collect(view: WebView, attempt: Int, onSession: (YtSession) -> Unit, onMissing: () -> Unit) {
     val retry = { view.postDelayed({ collect(view, attempt + 1, onSession, onMissing) }, 350) }
     val cookie = CookieManager.getInstance().getCookie(MusicUrl).orEmpty()

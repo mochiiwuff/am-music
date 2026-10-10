@@ -62,10 +62,8 @@ import app.ammusic.youtube.model.YtTrack
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Nombre de titres montrés dans une section de la page ; la suite est derrière « tout voir ». */
 private const val TracksShown = 5
 
-/** Page d'un artiste : sa photo en pleine largeur, son nom en grand par-dessus, puis ses sorties. */
 @Composable
 fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -149,13 +147,11 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
 @Composable
 private fun ArtistHero(state: ArtistState, route: ArtistRoute, list: LazyListState, canPlay: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
     val colors = AmTheme.colors
-    // Venue d'une pastille ronde, la photo s'ouvre en rectangle pendant la transition.
     val rounding = LocalScreenScope.current?.takeIf { route.sharedKey.isNotEmpty() }?.transition?.animateFloat(
         transitionSpec = { spring(dampingRatio = 0.9f, stiffness = 320f) },
         label = "rounding",
     ) { if (it == EnterExitState.Visible) 0f else 50f }
 
-    // Coupée à ses bords : la photo glisse moins vite que la page, mais ne déborde jamais sur la suite.
     Box(Modifier.fillMaxWidth().aspectRatio(0.94f).clipToBounds()) {
         Box(
             Modifier

@@ -71,7 +71,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
-/** Couleurs du lecteur tirées de la pochette : un fond sombre et deux teintes pour le dégradé. */
 @Immutable
 data class PlayerColors(val base: Color, val glow: Color, val shade: Color)
 
@@ -85,7 +84,6 @@ private fun tone(rgb: Int, lightness: Float): Color {
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
-/** Extrait les couleurs de la pochette, puis les fait glisser doucement vers les nouvelles à chaque titre. */
 @Composable
 fun rememberPlayerColors(artworkUrl: String?, stiffness: Float = 18f): PlayerColors {
     val context = LocalContext.current
@@ -111,10 +109,6 @@ fun rememberPlayerColors(artworkUrl: String?, stiffness: Float = 18f): PlayerCol
     return PlayerColors(base, glow, shade)
 }
 
-/**
- * Fond du lecteur : deux halos de couleur qui dérivent lentement sur un fond sombre.
- * Dessiné avec de simples dégradés, donc identique sur toutes les versions d'Android.
- */
 @Composable
 fun PlayerBackdrop(colors: PlayerColors, modifier: Modifier = Modifier) {
     val drift = rememberInfiniteTransition(label = "backdrop")
@@ -142,7 +136,6 @@ private val PlayShape = floatArrayOf(
     0.56f, 0.33f, 0.84f, 0.50f, 0.84f, 0.50f, 0.56f, 0.67f,
 )
 
-/** Bouton lecture / pause dont le dessin se transforme d'une forme à l'autre. */
 @Composable
 fun PlayPauseIcon(playing: Boolean, color: Color, size: Dp, modifier: Modifier = Modifier) {
     val morph by animateFloatAsState(if (playing) 0f else 1f, spring(dampingRatio = 0.7f, stiffness = 380f), label = "playPause")
@@ -164,7 +157,6 @@ fun PlayPauseIcon(playing: Boolean, color: Color, size: Dp, modifier: Modifier =
     }
 }
 
-/** Cœur « J'aime » : se remplit et rebondit quand on l'active. */
 @Composable
 fun HeartButton(liked: Boolean, onToggle: () -> Unit, tint: Color, likedTint: Color, modifier: Modifier = Modifier) {
     val scale = remember { Animatable(1f) }
@@ -187,10 +179,6 @@ fun HeartButton(liked: Boolean, onToggle: () -> Unit, tint: Color, likedTint: Co
     }
 }
 
-/**
- * Barre fine (progression, volume) qui s'épaissit sous le doigt.
- * [onChange] est appelé pendant le geste, [onRelease] quand le doigt se lève.
- */
 @Composable
 fun ThinSlider(
     value: Float,
@@ -233,7 +221,6 @@ fun ThinSlider(
     }
 }
 
-/** Volume « musique » du téléphone, entre 0 et 1, suivi aussi quand on utilise les boutons physiques. */
 @Composable
 fun rememberSystemVolume(): Pair<State<Float>, (Float) -> Unit> {
     val context = LocalContext.current

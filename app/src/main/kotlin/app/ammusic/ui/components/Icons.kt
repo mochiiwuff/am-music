@@ -36,7 +36,6 @@ private const val Shelf = "M5.1 10 H18.9 A1.6 1.6 0 0 1 20.5 11.6 V18.4 A1.6 1.6
 private const val Lens = "M10.8 4.2 A6.6 6.6 0 1 0 10.8 17.4 A6.6 6.6 0 1 0 10.8 4.2 Z"
 private const val HeartShape = "M12 20 C12 20 3.5 15.2 3.5 9.3 A4.4 4.4 0 0 1 12 7.3 A4.4 4.4 0 0 1 20.5 9.3 C20.5 15.2 12 20 12 20 Z"
 
-/** Jeu d'icônes dessiné pour AM Music : traits fins arrondis, versions pleines pour l'état actif. */
 object AmIcons {
     val Home by lazy { icon("Home", Part(House), Part("M10 20 V15.4 A2 2 0 0 1 14 15.4 V20")) }
     val HomeFilled by lazy {
@@ -141,7 +140,6 @@ object AmIcons {
         )
     }
     val Remove by lazy { icon("Remove", Part(circle(12f, 12f, 8.5f)), Part("M8.5 12 H15.5")) }
-    /** Paroles : un guillemet ouvrant, puis deux lignes de texte. */
     val Lyrics by lazy {
         icon(
             "Lyrics",

@@ -46,13 +46,8 @@ private val TabBarHeight = 64.dp
 private val MiniPlayerHeight = 56.dp
 private val Gap = 8.dp
 
-/** Hauteur occupée par les deux barres dépliées, marges comprises (hors barre système). */
 val FloatingBarsHeight = TabBarHeight + Gap + MiniPlayerHeight + 24.dp
 
-/**
- * Barre d'onglets et mini-lecteur flottants. Quand [collapsed] passe à vrai, la barre d'onglets
- * se réduit à un rond et le mini-lecteur descend se loger à côté d'elle.
- */
 @Composable
 fun FloatingBars(
     current: Tab,
@@ -65,7 +60,6 @@ fun FloatingBars(
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Sans titre chargé, pas de mini-lecteur : la barre d'onglets reste seule, entière.
     val hasTrack = player.track != null
     val folded = collapsed && hasTrack
     val progress = animateFloatAsState(
@@ -82,7 +76,6 @@ fun FloatingBars(
         content = {
             TabBar(current, onSelect, folded, { progress.value }, onExpand)
             if (hasTrack || presence.value > 0.01f) {
-                // Au premier titre, le mini-lecteur monte de derrière la barre d'onglets.
                 Box(
                     Modifier.graphicsLayer {
                         val shown = presence.value.coerceIn(0f, 1f)
@@ -191,7 +184,6 @@ private fun MiniPlayer(player: PlayerState, sheet: PlayerSheetState, onTogglePla
             .padding(start = 8.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Dès que le lecteur s'ouvre, c'est la pochette voyageuse de PlayerSheet qui prend le relais.
         Cover(
             url = track?.thumbnail,
             modifier = Modifier

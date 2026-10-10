@@ -48,7 +48,6 @@ data class PlayerState(
     val liked: Boolean = false,
 )
 
-/** Pont entre l'interface et [PlaybackService]. Un titre n'apparaît qu'une fois dans la file. */
 @Singleton
 class PlayerController @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -63,7 +62,6 @@ class PlayerController @Inject constructor(
     private var player: MediaController? = null
     private var radio: Job? = null
 
-    /** Position de lecture actuelle, à lire depuis l'interface (elle change en continu). */
     val positionMs: Long get() = player?.currentPosition ?: 0L
 
     init {
@@ -71,7 +69,6 @@ class PlayerController @Inject constructor(
         scope.launch { library.likedIds.collect { player?.let(::publish) } }
     }
 
-    /** Lance [track] ; la radio YouTube Music de ce titre complète ensuite la file, sans fin. */
     fun play(track: YtTrack) = withPlayer { player ->
         radio?.cancel()
         player.setMediaItem(track.toMediaItem())
@@ -80,10 +77,6 @@ class PlayerController @Inject constructor(
         extendQueue(player)
     }
 
-    /**
-     * Lance une liste (album, playlist) à partir de [startIndex]. [shuffle] force le mode aléatoire
-     * (on part alors d'un titre au hasard) ou l'arrêt de ce mode ; `null` laisse le réglage tel quel.
-     */
     fun playAll(tracks: List<YtTrack>, startIndex: Int = 0, shuffle: Boolean? = null) = withPlayer { player ->
         val items = tracks.distinctBy { it.id }
         if (items.isEmpty()) return@withPlayer
@@ -96,10 +89,8 @@ class PlayerController @Inject constructor(
         extendQueue(player)
     }
 
-    /** Place [track] juste après le titre en cours. */
     fun playNext(track: YtTrack) = insert(track) { player -> player.currentMediaItemIndex + 1 }
 
-    /** Place [track] à la fin de la file. */
     fun addToQueue(track: YtTrack) = insert(track) { player -> player.mediaItemCount }
 
     private fun insert(track: YtTrack, position: (MediaController) -> Int) = withPlayer { player ->
@@ -126,7 +117,6 @@ class PlayerController @Inject constructor(
 
     fun next() = withPlayer { it.seekToNextMediaItem() }
 
-    /** Revient au début du titre, ou au titre précédent si on est dans les premières secondes. */
     fun previous() = withPlayer { it.seekToPrevious() }
 
     fun seekTo(positionMs: Long) = withPlayer { it.seekTo(positionMs) }
@@ -153,7 +143,6 @@ class PlayerController @Inject constructor(
         }
     }
 
-    /** Ajoute le titre en cours aux titres aimés de la bibliothèque, ou l'en retire. */
     fun toggleLike() = withPlayer { player ->
         player.currentMediaItem?.toTrack()?.let(library::toggleLike)
     }
@@ -162,7 +151,6 @@ class PlayerController @Inject constructor(
         scope.launch { block(controller()) }
     }
 
-    /** Quand il reste peu de titres devant, ajoute la suite de la radio du dernier titre de la file. */
     private fun extendQueue(player: MediaController) {
         if (radio?.isActive == true || player.mediaItemCount == 0) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3) return

@@ -66,13 +66,11 @@ import coil3.request.ImageRequest
 import kotlin.math.PI
 import kotlin.math.sin
 
-/** Fournis par `AppRoot` autour de chaque écran : de quoi faire voyager une pochette d'un écran à l'autre. */
 val LocalSharedScope = compositionLocalOf<SharedTransitionScope?> { null }
 val LocalScreenScope = compositionLocalOf<AnimatedVisibilityScope?> { null }
 
 val SharedBounds = BoundsTransform { _, _ -> spring(dampingRatio = 0.86f, stiffness = 320f) }
 
-/** Relie cet élément à celui qui porte la même [key] sur l'écran d'où l'on vient ou vers lequel on va. */
 @Composable
 fun Modifier.sharedCover(key: String?): Modifier {
     val shared = LocalSharedScope.current
@@ -86,10 +84,6 @@ fun Modifier.sharedCover(key: String?): Modifier {
 const val RowCoverSize = 160
 const val TileCoverSize = 400
 
-/**
- * Pochette chargée depuis YouTube. [requestSize] est la taille demandée au serveur, en pixels.
- * Avec [sharedKey], elle voyage vers la page qu'elle ouvre (voir [sharedCover]).
- */
 @Composable
 fun Cover(
     url: String?,
@@ -108,10 +102,7 @@ fun Cover(
     } else {
         Modifier
     }
-    // L'image est décodée telle que le serveur l'envoie ([requestSize]), et non à la taille de la vue au moment
-    // de la demande : une pochette qui grandit ensuite (mini-lecteur → plein écran) resterait floue.
     val context = LocalPlatformContext.current
-    // Si la grande version n'existe pas (vignette de clip ancien), on retombe sur l'adresse d'origine.
     var resizedFailed by remember(url, requestSize) { mutableStateOf(false) }
     val request = remember(url, requestSize, resizedFailed) {
         val data = if (resizedFailed) url else url?.thumbnailAt(requestSize)
@@ -126,7 +117,6 @@ fun Cover(
     )
 }
 
-/** Squelette animé affiché pendant un chargement. */
 fun Modifier.shimmer(shape: Shape): Modifier = composed {
     val colors = AmTheme.colors
     val transition = rememberInfiniteTransition(label = "shimmer")
@@ -170,11 +160,6 @@ fun ErrorState(title: String, message: String, onRetry: () -> Unit, modifier: Mo
     }
 }
 
-/**
- * Ligne de liste : pochette, titre, sous-titre. Les artistes ont une pochette ronde.
- * Un titre porte le bouton « ⋯ » (appui long : même menu) et s'affiche en couleur d'accent s'il est en cours de lecture.
- * Sans [onClick], la ligne ouvre l'élément (voir [AppActions.open]) ; [origin] identifie la liste pour la pochette voyageuse.
- */
 @Composable
 fun ItemRow(
     item: YtItem,
@@ -215,10 +200,8 @@ fun ItemRow(
     }
 }
 
-/** Sous-titre affiché dans les listes : un album sans nom d'artiste (page de cet artiste) montre son année. */
 private fun YtItem.caption(): String = subtitle.ifBlank { (this as? YtAlbum)?.year?.toString().orEmpty() }
 
-/** Carrousel de pochettes carrées (rondes pour les artistes). */
 @Composable
 fun ItemCarousel(items: List<YtItem>, origin: String, modifier: Modifier = Modifier) {
     val actions = LocalActions.current
@@ -248,7 +231,6 @@ fun ItemTile(item: YtItem, origin: String, modifier: Modifier = Modifier, onClic
     }
 }
 
-/** Trois petites barres qui dansent pendant la lecture et se figent en pause. */
 @Composable
 fun NowPlayingBars(playing: Boolean, color: Color, modifier: Modifier = Modifier) {
     val phase = if (playing) {
@@ -267,7 +249,6 @@ fun NowPlayingBars(playing: Boolean, color: Color, modifier: Modifier = Modifier
     }
 }
 
-/** Lignes en squelette pendant le chargement d'une liste. */
 @Composable
 fun RowsSkeleton(count: Int, modifier: Modifier = Modifier) {
     Column(modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

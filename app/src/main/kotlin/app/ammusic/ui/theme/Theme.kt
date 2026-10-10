@@ -20,7 +20,6 @@ import app.ammusic.R
 
 enum class ThemeMode { System, Dark, Light }
 
-/** Couleurs d'accent proposées dans les réglages. La première est celle par défaut. */
 val AccentChoices = listOf(
     Color(0xFFFF3B5C),
     Color(0xFFFF7A3D),

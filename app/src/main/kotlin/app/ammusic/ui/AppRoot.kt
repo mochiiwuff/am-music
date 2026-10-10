@@ -87,7 +87,6 @@ import app.ammusic.ui.theme.AmTheme
 import app.ammusic.ui.theme.ThemeMode
 import dev.chrisbanes.haze.rememberHazeState
 
-
 private val Tab.route: Any
     get() = when (this) {
         Tab.Home -> HomeRoute
@@ -98,7 +97,6 @@ private val Tab.route: Any
 private val SlideSpec = spring<IntOffset>(dampingRatio = 0.9f, stiffness = 340f)
 private val FadeSpec = spring<Float>(stiffness = 380f)
 
-/** Replie les barres flottantes quand on descend dans une liste, les déplie quand on remonte. */
 private class BarsScrollConnection(private val onCollapsed: (Boolean) -> Unit) : NestedScrollConnection {
     private var travelled = 0f
 
@@ -153,7 +151,6 @@ fun AppRoot(
 
     val openArtist = { id: String, name: String -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) }
 
-    /** Feuille « Ajouter à une playlist » : une nouvelle, ou l'une de celles que l'on peut modifier. */
     val choosePlaylist = { track: YtTrack ->
         val create = MenuAction(AmIcons.Plus, "Nouvelle playlist") {
             promptRequest = PromptRequest("Nouvelle playlist", "") { title -> libraryViewModel.addToNewPlaylist(title, track) }
@@ -164,7 +161,6 @@ fun AppRoot(
         sheetRequest = MenuRequest("Ajouter à une playlist", track.title, track.thumbnail, listOf(create) + existing)
     }
 
-    /** Lignes du menu « ⋯ » d'un titre. */
     val trackActions = { track: YtTrack ->
         val liked = track.id in likedIds
         listOfNotNull(
@@ -224,7 +220,6 @@ fun AppRoot(
     ) {
         Box(Modifier.fillMaxSize().background(AmTheme.colors.background).nestedScroll(scroll)) {
             SharedTransitionLayout {
-                // Chaque écran reçoit de quoi faire voyager ses pochettes vers l'écran suivant.
                 val screen: @Composable AnimatedVisibilityScope.(@Composable () -> Unit) -> Unit = { content ->
                     CompositionLocalProvider(LocalSharedScope provides this@SharedTransitionLayout, LocalScreenScope provides this, content = content)
                 }
@@ -274,7 +269,6 @@ fun AppRoot(
                 sheet = sheet,
                 onTogglePlay = playerViewModel::toggle,
                 onNext = playerViewModel::next,
-                // Sur l'écran de connexion, les barres glissent hors de l'écran pour laisser toute la place à la page.
                 modifier = Modifier.align(Alignment.BottomCenter).graphicsLayer {
                     translationY = barsAway * 240.dp.toPx()
                     alpha = 1f - barsAway

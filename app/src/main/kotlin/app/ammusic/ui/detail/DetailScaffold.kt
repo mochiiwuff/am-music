@@ -48,11 +48,6 @@ import dev.chrisbanes.haze.hazeSource
 
 val DetailBarHeight = 48.dp
 
-/**
- * Écran de détail (album, playlist, artiste) : bouton retour, et barre du haut qui devient
- * un verre dépoli portant [title] une fois l'en-tête défilé de [revealAfter].
- * Avec [underStatusBar], le contenu commence tout en haut de l'écran (photo d'artiste).
- */
 @Composable
 fun DetailScaffold(
     title: String,
@@ -141,7 +136,6 @@ fun DetailScaffold(
     }
 }
 
-/** Bouton large des en-têtes (« Lecture », « Aléatoire ») : plein en couleur d'accent, ou discret. */
 @Composable
 fun PillButton(label: String, icon: ImageVector, filled: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AmTheme.colors
@@ -161,7 +155,6 @@ fun PillButton(label: String, icon: ImageVector, filled: Boolean, enabled: Boole
     }
 }
 
-/** Bouton « + » de la barre du haut : ajoute à la bibliothèque, puis devient une coche (toucher à nouveau retire). */
 @Composable
 fun SaveButton(saved: Boolean, addLabel: String, removeLabel: String, onToggle: () -> Unit) {
     val turn by animateFloatAsState(if (saved) 1f else 0f, spring(dampingRatio = 0.5f, stiffness = 380f), label = "save")
@@ -173,7 +166,6 @@ fun SaveButton(saved: Boolean, addLabel: String, removeLabel: String, onToggle: 
             icon = if (saved) AmIcons.Check else AmIcons.Plus,
             tint = if (saved) AmTheme.colors.accent else AmTheme.colors.text,
             size = 22.dp,
-            // Un quart de tour et un léger rebond au moment où le « + » devient une coche.
             modifier = Modifier.graphicsLayer {
                 rotationZ = (1f - turn) * -90f * if (saved) 1f else 0f
                 scaleX = 0.8f + 0.2f * if (saved) turn else 1f - turn

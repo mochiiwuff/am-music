@@ -42,16 +42,10 @@ import androidx.compose.ui.unit.dp
 import app.ammusic.ui.theme.AmTheme
 import kotlinx.coroutines.launch
 
-/** Une ligne de menu. [destructive] : action qui supprime, écrite en couleur d'accent. */
 class MenuAction(val icon: ImageVector, val label: String, val destructive: Boolean = false, val onClick: () -> Unit)
 
-/** Contenu d'une feuille de menu : un en-tête (titre, sous-titre, pochette) et ses lignes. */
 class MenuRequest(val title: String, val subtitle: String, val thumbnail: String?, val actions: List<MenuAction>)
 
-/**
- * Feuille de menu (menu « ⋯ » d'un titre, choix d'une playlist…) : elle remonte du bas, se referme en la tirant vers le bas,
- * en touchant à côté ou avec le geste retour. [request] à `null` la referme.
- */
 @Composable
 fun MenuSheet(request: MenuRequest?, onDismiss: () -> Unit) {
     val colors = AmTheme.colors
@@ -117,14 +111,12 @@ fun MenuSheet(request: MenuRequest?, onDismiss: () -> Unit) {
                 }
             }
             Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(colors.hairline))
-            // Une longue liste (choix d'une playlist) défile à l'intérieur de la feuille.
             Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
                 rows.forEachIndexed { index, action ->
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
-                                // Les lignes arrivent l'une après l'autre, juste derrière la feuille.
                                 val reveal = ((progress.value - 0.3f - index.coerceAtMost(5) * 0.05f) / 0.45f).coerceIn(0f, 1f)
                                 alpha = reveal
                                 translationY = (1f - reveal) * 14.dp.toPx()

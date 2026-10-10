@@ -174,7 +174,6 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
     }
 }
 
-/** Sections des résultats groupés dont l'en-tête mène au filtre correspondant. */
 private val SectionFilters = mapOf(
     "Titres" to YtSearchFilter.Songs,
     "Clips" to YtSearchFilter.Videos,
@@ -205,7 +204,6 @@ private fun FilterChips(selected: YtSearchFilter?, onSelect: (YtSearchFilter?) -
             val active = filter == selected
             val fill by animateColorAsState(if (active) colors.accent else colors.surface, soft, label = "chip")
             val text by animateColorAsState(if (active) Color.White else colors.text, soft, label = "chipText")
-            // Zone tactile de 48 dp autour d'une pastille de 36 dp.
             Box(Modifier.height(48.dp).pressable(haptic = true, label = label) { onSelect(filter) }, contentAlignment = Alignment.Center) {
                 Box(
                     Modifier.height(36.dp).clip(CircleShape).drawBehind { drawRect(fill) }.padding(horizontal = 16.dp),

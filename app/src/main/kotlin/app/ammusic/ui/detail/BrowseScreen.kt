@@ -30,10 +30,6 @@ import app.ammusic.ui.components.TileCoverSize
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtTrack
 
-/**
- * Page faite de sections : une humeur, un genre, ou la liste complète d'une section d'artiste.
- * Une section seule s'étale en liste (titres) ou en grille sur 2 colonnes ; plusieurs deviennent des carrousels.
- */
 @Composable
 fun BrowseScreen(viewModel: BrowseViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()

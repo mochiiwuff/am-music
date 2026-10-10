@@ -57,7 +57,6 @@ private val Shelves = listOf(
     Shelf(LibraryKind.History, "Historique", AmIcons.Clock),
 )
 
-/** Onglet Bibliothèque : les cinq rayons, puis les derniers ajouts en grille. */
 @Composable
 fun LibraryScreen(onProfile: () -> Unit, viewModel: LibraryViewModel = hiltViewModel()) {
     val account by viewModel.account.collectAsStateWithLifecycle()
@@ -141,7 +140,6 @@ private fun Hint(text: String) {
     AmText(text, style = AmTheme.type.subhead, color = AmTheme.colors.textSecondary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp))
 }
 
-/** Grille de pochettes sur 2 colonnes, à l'intérieur d'une liste. */
 private fun LazyListScope.tileGrid(items: List<YtItem>, origin: String) {
     items(items.chunked(2), key = { it.first().key }, contentType = { "tiles" }) { pair ->
         val actions = LocalActions.current
@@ -157,7 +155,6 @@ private fun LazyListScope.tileGrid(items: List<YtItem>, origin: String) {
     }
 }
 
-/** Une liste de la bibliothèque ([kind] : voir [LibraryKind]). */
 @Composable
 fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel()) {
     val actions = LocalActions.current
@@ -207,7 +204,6 @@ private fun LazyListScope.rows(items: List<YtItem>, origin: String) {
     }
 }
 
-/** Liste de titres avec ses boutons « Lecture » et « Aléatoire » ; toucher un titre lance la liste à partir de lui. */
 private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyHint: String) {
     if (tracks.isEmpty()) {
         item(key = "empty") { Hint(emptyHint) }

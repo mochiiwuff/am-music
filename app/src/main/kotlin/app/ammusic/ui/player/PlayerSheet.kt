@@ -87,7 +87,6 @@ private val SheetSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 260f)
 private val PanelSpring = spring<Float>(dampingRatio = 0.88f, stiffness = 300f)
 private val Soft = Color(0x99FFFFFF)
 
-/** Ouverture du lecteur : 0 = mini-lecteur, 1 = plein écran. Partagé entre le mini-lecteur et [PlayerSheet]. */
 @Stable
 class PlayerSheetState(private val scope: CoroutineScope) {
     val progress = Animatable(0f)
@@ -96,7 +95,6 @@ class PlayerSheetState(private val scope: CoroutineScope) {
     var travelPx = 1f
     val isOpen by derivedStateOf { progress.value > 0f }
 
-    /** Suit le doigt : [upPx] positif quand il monte. */
     fun dragBy(upPx: Float) {
         scope.launch { progress.snapTo((progress.value + upPx / travelPx).coerceIn(0f, 1f)) }
     }
@@ -126,7 +124,6 @@ fun rememberPlayerSheetState(): PlayerSheetState {
     return remember { PlayerSheetState(scope) }
 }
 
-/** Lecteur plein écran. Il grandit depuis le mini-lecteur et la pochette voyage de l'un à l'autre. */
 @Composable
 fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewModel) {
     val track = state.track ?: return
@@ -241,7 +238,6 @@ fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewM
     }
 }
 
-/** Sur le fond sombre du lecteur, les icônes de la barre d'état doivent rester claires, même en thème clair. */
 @Composable
 private fun LightSystemBars(sheet: PlayerSheetState) {
     val view = LocalView.current
@@ -281,7 +277,6 @@ private fun PlayerContent(
         }
         Spacer(Modifier.height(12.dp + artSpace))
 
-        // Les commandes s'effacent quand les paroles prennent leur place.
         Column(
             Modifier.weight(1f).fillMaxWidth().graphicsLayer { alpha = 1f - fade().coerceIn(0f, 1f) },
             verticalArrangement = Arrangement.SpaceEvenly,
@@ -333,7 +328,6 @@ private fun PlayerContent(
     }
 }
 
-/** Isolé du reste : cette partie se redessine quatre fois par seconde pendant la lecture. */
 @Composable
 private fun ProgressSection(trackId: String, playing: Boolean, durationMs: Long, player: PlayerViewModel) {
     var position by remember(trackId) { mutableLongStateOf(player.positionMs) }
@@ -379,10 +373,6 @@ private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onCl
     }
 }
 
-/**
- * La pochette, dessinée au-dessus de tout : elle passe du rond du mini-lecteur au grand carré,
- * rétrécit en pause, se range dans l'en-tête quand la file s'ouvre, et se balaie pour changer de titre.
- */
 @Composable
 private fun SharedArtwork(
     sheet: PlayerSheetState,
@@ -446,7 +436,6 @@ private fun SharedArtwork(
                 },
             ),
     ) {
-        // La petite image est déjà en mémoire (mini-lecteur) : elle évite un trou pendant que la grande charge.
         Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 160)
         Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 1080, placeholder = false)
     }

@@ -38,13 +38,11 @@ class PlayerViewModel @Inject constructor(
 ) : ViewModel() {
     val state = controller.state
 
-    /** Paroles du titre en cours ; `null` pendant la recherche. */
     private val _lyrics = MutableStateFlow<Lyrics?>(null)
     val lyrics: StateFlow<Lyrics?> = _lyrics.asStateFlow()
     private var lyricsFor: String? = null
     private var lyricsJob: Job? = null
 
-    /** Cherche les paroles du titre en cours (appelé quand le panneau des paroles est ouvert, à chaque changement de titre). */
     fun loadLyrics() {
         val track = state.value.track ?: return
         if (lyricsFor == track.id) return
@@ -52,7 +50,6 @@ class PlayerViewModel @Inject constructor(
         _lyrics.value = null
         lyricsJob?.cancel()
         lyricsJob = viewModelScope.launch {
-            // La durée aide à trouver la bonne version : on l'attend un instant si le titre vient de démarrer.
             val duration = withTimeoutOrNull(3_000) { state.first { it.track?.id == track.id && it.durationMs > 0 }.durationMs } ?: 0L
             _lyrics.value = lyricsRepository.find(track, duration)
         }
@@ -102,7 +99,6 @@ class HomeViewModel @Inject constructor(private val repository: MusicRepository,
 
     init {
         load()
-        // Connexion ou déconnexion : les recommandations ne sont plus les mêmes.
         viewModelScope.launch { account.account.map { it != null }.distinctUntilChanged().drop(1).collect { load() } }
     }
 
@@ -124,11 +120,9 @@ sealed interface SearchResults {
     data object Error : SearchResults
     data class Content(val sections: List<YtSection>) : SearchResults
 
-    /** Résultats d'un seul type ; [continuation] est le jeton de la page suivante, s'il en reste. */
     data class Filtered(val items: List<YtItem>, val continuation: String?) : SearchResults
 }
 
-/** [filter] vaut `null` pour « Tout » (résultats groupés). */
 data class SearchState(
     val query: String = "",
     val suggestions: List<String> = emptyList(),
@@ -213,7 +207,6 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /** Charge la page suivante des résultats filtrés (appelé quand on arrive en bas de la liste). */
     fun loadMore() {
         val current = _state.value.results as? SearchResults.Filtered ?: return
         val token = current.continuation ?: return

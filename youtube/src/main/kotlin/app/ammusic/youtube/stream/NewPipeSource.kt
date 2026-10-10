@@ -15,7 +15,6 @@ import org.schabi.newpipe.extractor.stream.StreamInfo as NewPipeStreamInfo
 private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
 private val ExpireParam = Regex("[?&]expire=(\\d+)")
 
-/** Méthode de secours : NewPipeExtractor, utilisée quand innertubex ne trouve aucun flux. */
 class NewPipeSource(private val client: OkHttpClient = OkHttpClient()) : StreamSource {
     override val name = "newpipe"
 

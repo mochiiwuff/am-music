@@ -55,10 +55,6 @@ import kotlin.math.abs
 
 private val Soft = Color(0x99FFFFFF)
 
-/**
- * File d'attente : panneau qui remonte du bas du lecteur.
- * Glisser la poignée pour réordonner, balayer une ligne vers la gauche pour la retirer.
- */
 @Composable
 fun QueuePanel(
     progress: () -> Float,
@@ -83,7 +79,6 @@ fun QueuePanel(
             .background(background)
             .navigationBarsPadding(),
     ) {
-        // L'espace à gauche est celui où la pochette vient se ranger.
         Row(Modifier.fillMaxWidth().height(96.dp).padding(start = 94.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 AmText(state.track?.title.orEmpty(), style = AmTheme.type.headline, color = Color.White, maxLines = 1)
@@ -93,7 +88,6 @@ fun QueuePanel(
         }
         AmText("File d'attente", style = AmTheme.type.section, color = Color.White, modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp))
 
-        // Copie locale : l'ordre change tout de suite sous le doigt, le lecteur suit juste après.
         var tracks by remember { mutableStateOf(state.queue) }
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = state.index)
         val reorder = rememberReorderableLazyListState(listState) { from, to ->

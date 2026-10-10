@@ -31,10 +31,6 @@ private const val DEFAULT_TTL_MS = 5 * 60 * 1000L
 private const val PLAYER_CONFIG_URL =
     "https://raw.githubusercontent.com/ZemerTeam/zemer-cipher/master/library/src/main/assets/player_configs.json"
 
-/**
- * Méthode principale : le moteur d'extraction de Metrolist (innertubex).
- * Adapté de `InnerTubeXPlayer.kt` (Metrolist, GPL-3.0). Voir docs/youtube.md.
- */
 class InnerTubeXSource(context: Context) : StreamSource {
     override val name = "innertubex"
 
@@ -77,8 +73,6 @@ class InnerTubeXSource(context: Context) : StreamSource {
 
     override suspend fun onRejected(videoId: String, stream: StreamInfo) {
         failures.compute(videoId) { _, old -> FailedClients(old?.names.orEmpty() + stream.client, System.currentTimeMillis()) }
-        // Un refus peut venir d'une signature mal calculée : si la table de déchiffrement
-        // a changé entre-temps, tous les clients redeviennent utilisables.
         if (bundle().cipherService.refreshAfterStreamRejection()) failures.clear()
     }
 

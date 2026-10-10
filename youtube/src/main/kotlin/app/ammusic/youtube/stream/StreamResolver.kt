@@ -5,7 +5,6 @@ import kotlin.coroutines.cancellation.CancellationException
 
 enum class AudioQuality { Auto, High, Low }
 
-/** Flux audio prêt à être lu. [chunkBytes] > 0 : le serveur exige des requêtes par plages de cette taille. */
 class StreamInfo(
     val url: String,
     val headers: Map<String, String>,
@@ -17,23 +16,17 @@ class StreamInfo(
     val contentLength: Long? = null,
 )
 
-/** Une méthode pour obtenir le flux audio d'un titre. */
 interface StreamSource {
     val name: String
 
     suspend fun resolve(videoId: String, quality: AudioQuality): StreamInfo
 
-    /** Le serveur a refusé une URL donnée par cette méthode (403 / 410). */
     suspend fun onRejected(videoId: String, stream: StreamInfo) {}
 }
 
 class StreamUnavailableException(val videoId: String, val causes: List<Throwable>) :
     Exception("Aucun flux lisible pour $videoId : " + causes.joinToString(" | ") { "${it::class.simpleName}: ${it.message}" })
 
-/**
- * Chaîne de secours : essaie chaque méthode dans l'ordre et garde l'URL obtenue
- * jusqu'à une minute avant son expiration.
- */
 class StreamResolver(
     private val sources: List<StreamSource>,
     private val now: () -> Long = System::currentTimeMillis,
@@ -55,7 +48,6 @@ class StreamResolver(
         throw StreamUnavailableException(videoId, errors)
     }
 
-    /** À appeler quand la lecture échoue sur une erreur HTTP : oublie l'URL et prévient la méthode fautive. */
     suspend fun reject(videoId: String) {
         val stream = cache.remove(videoId) ?: return
         sources.firstOrNull { it.name == stream.source }?.onRejected(videoId, stream)

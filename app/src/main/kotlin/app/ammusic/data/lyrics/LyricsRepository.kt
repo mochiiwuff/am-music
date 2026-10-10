@@ -28,7 +28,6 @@ private data class LrcLibEntry(
     val syncedLyrics: String? = null,
 )
 
-/** Mentions ajoutées aux titres de clips, qui empêchent de retrouver les paroles (« (Official Video) », « [Clip officiel] »…). */
 private val TitleNoise = Regex(
     "\\s*[(\\[][^)\\]]*(official|officiel|video|vidéo|clip|audio|lyric|paroles|visuali[sz]er|remaster)[^)\\]]*[)\\]]",
     RegexOption.IGNORE_CASE,
@@ -47,11 +46,6 @@ private data class PlusLine(val time: Long = 0, val duration: Long = 0, val text
 @Serializable
 private data class PlusResponse(val lyrics: List<PlusLine> = emptyList())
 
-/**
- * Cherche les paroles d'un titre, de la source la plus précise à la plus simple :
- * LyricsPlus puis BetterLyrics (mot à mot quand il existe), puis LRCLIB (ligne par ligne, sinon texte seul).
- * Les réponses sont gardées en mémoire le temps de la session.
- */
 @Singleton
 class LyricsRepository @Inject constructor() {
     private val client = OkHttpClient.Builder().callTimeout(12, TimeUnit.SECONDS).build()
@@ -66,8 +60,6 @@ class LyricsRepository @Inject constructor() {
         val artist = track.artists.substringBefore(", ")
         val seconds = (durationMs / 1000).toInt()
 
-        // LRCLIB donne le calage de référence (le mieux accordé à ce que joue YouTube Music) ; les sources « mot à mot »
-        // viennent souvent d'une autre version du titre, décalée : on ne les garde que recalées sur LRCLIB.
         val (reference, detailed) = coroutineScope {
             val reference = async { lrcLib(title, artist, track.album, seconds) }
             val detailed = async { lyricsPlus(title, artist, track.album, seconds) ?: betterLyrics(title, artist, track.album, seconds) }
@@ -86,12 +78,10 @@ class LyricsRepository @Inject constructor() {
             Lyrics.None -> "rien trouvé"
         }
         Log.d(Tag, "« $title » — $artist : $detail")
-        // Un échec n'est pas gardé : la prochaine ouverture retentera (réseau revenu, paroles ajoutées…).
         if (found != Lyrics.None) synchronized(cache) { cache[track.id] = found }
         found
     }
 
-    /** LyricsPlus : mot à mot pour les titres connus, ligne par ligne sinon. Deux serveurs, essayés dans l'ordre. */
     private fun lyricsPlus(title: String, artist: String, album: String?, seconds: Int): Lyrics.Synced? {
         for (server in LyricsPlusServers) {
             val url = "$server/v2/lyrics/get".toHttpUrl().newBuilder()
@@ -112,7 +102,6 @@ class LyricsRepository @Inject constructor() {
         return null
     }
 
-    /** BetterLyrics : mot à mot, mais sans clé il ne sert que les titres qu'il a déjà en réserve (sinon réponse 401). */
     private fun betterLyrics(title: String, artist: String, album: String?, seconds: Int): Lyrics.Synced? {
         val url = "https://lyrics-api.boidu.dev/getLyrics".toHttpUrl().newBuilder()
             .addQueryParameter("s", title)
@@ -145,7 +134,6 @@ class LyricsRepository @Inject constructor() {
         }
         exact?.toLyrics()?.let { return it }
 
-        // Pas de fiche exacte : on cherche, et on garde la durée la plus proche (5 s d'écart au plus si on la connaît).
         val url = "https://lrclib.net/api/search".toHttpUrl().newBuilder()
             .addQueryParameter("track_name", title)
             .addQueryParameter("artist_name", artist)
@@ -161,7 +149,6 @@ class LyricsRepository @Inject constructor() {
         return plainLyrics?.takeIf { it.isNotBlank() }?.let(Lyrics::Plain)
     }
 
-    /** Corps de la réponse, ou `null` si la requête échoue ou ne trouve rien. */
     private fun get(url: HttpUrl): String? = runCatching {
         val request = Request.Builder().url(url).header("User-Agent", "AM Music (appli personnelle)").build()
         client.newCall(request).execute().use { response ->

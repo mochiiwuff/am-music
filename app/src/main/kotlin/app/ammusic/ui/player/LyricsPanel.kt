@@ -73,16 +73,10 @@ import kotlin.math.abs
 private val Soft = Color(0x99FFFFFF)
 private val LineStyle = AmTheme.type.title.copy(fontSize = 27.sp, lineHeight = 34.sp)
 
-/** Après un défilement à la main, les paroles attendent ce délai avant de se recaler sur la musique. */
 private const val ResumeAfterMs = 3_000L
 
-/** La ligne s'allume un peu avant d'être chantée : l'œil a le temps d'y arriver. */
 private const val LeadMs = 180L
 
-/**
- * Paroles : elles prennent la place des commandes, sur le fond animé du lecteur, pendant que la pochette
- * se range dans l'en-tête. La ligne chantée est nette et lumineuse, les autres s'estompent. Toucher une ligne y saute.
- */
 @Composable
 fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: PlayerViewModel, onClose: () -> Unit) {
     val visible by remember { derivedStateOf { progress() > 0f } }
@@ -102,7 +96,6 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
             .padding(top = top)
             .navigationBarsPadding(),
     ) {
-        // L'espace à gauche est celui où la pochette vient se ranger.
         Row(Modifier.fillMaxWidth().height(96.dp).padding(start = 94.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 AmText(state.track?.title.orEmpty(), style = AmTheme.type.headline, color = Color.White, maxLines = 1)
@@ -133,7 +126,6 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
     }
 }
 
-/** Fond le haut et le bas de la zone dans le décor, pour que les lignes apparaissent et disparaissent en douceur. */
 private fun Modifier.fadedEdges(): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
     drawContent()
     drawRect(
@@ -147,7 +139,6 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
     val list = rememberLazyListState()
     val dragged by list.interactionSource.collectIsDraggedAsState()
 
-    // Position de lecture relue à chaque image ; seuls le numéro de ligne et le dessin des mots en dépendent.
     val position = remember { mutableLongStateOf(player.positionMs) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -193,7 +184,6 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
     }
 }
 
-/** [distance] : nombre de lignes entre celle-ci et la ligne chantée (0 = c'est elle). */
 @Composable
 private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onClick: () -> Unit) {
     val active = distance == 0
@@ -217,7 +207,6 @@ private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onCli
             .blur(haze, BlurredEdgeTreatment.Unbounded),
     ) {
         if (active && line.words.isNotEmpty()) {
-            // Mot à mot : les mots déjà chantés sont pleins, celui en cours s'allume, les suivants attendent.
             val now = position()
             BasicText(
                 text = buildAnnotatedString {
@@ -249,7 +238,6 @@ private fun Message(text: String) {
     }
 }
 
-/** Lignes fantômes qui respirent pendant la recherche des paroles. */
 @Composable
 private fun LyricsSkeleton() {
     val pulse by rememberInfiniteTransition(label = "lyrics").animateFloat(

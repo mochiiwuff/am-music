@@ -47,10 +47,8 @@ private const val TAG = "AmPlayback"
 private const val MAX_RETRIES = 6
 private const val CACHE_BYTES = 512L * 1024 * 1024
 
-/** Adresse interne d'un titre : la vraie URL du flux n'est cherchée qu'au moment de la lecture. */
 fun trackUri(videoId: String) = "ammusic://track/$videoId".toUri()
 
-/** Lecture en arrière-plan : ExoPlayer + session média (notification, écran de verrouillage, Bluetooth). */
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -111,7 +109,6 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    /** Sur une erreur de lecture : nouvelle URL (autre client ou autre méthode), puis reprise au même endroit. */
     private val recovery = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) player.currentMediaItem?.mediaId?.let(retries::remove)
@@ -140,7 +137,6 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    /** Les éléments reçus d'un contrôleur n'ont pas d'adresse : on la reconstruit à partir de l'identifiant. */
     private object SessionCallback : MediaSession.Callback {
         override fun onAddMediaItems(
             mediaSession: MediaSession,
@@ -171,7 +167,6 @@ private fun DataSpec.withStream(stream: StreamInfo): DataSpec {
 
 private var cache: SimpleCache? = null
 
-/** Cache audio des titres écoutés (une seule instance par dossier, sinon Media3 plante). */
 @OptIn(UnstableApi::class)
 @Synchronized
 private fun audioCache(context: Context): SimpleCache = cache ?: SimpleCache(
