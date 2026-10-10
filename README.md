@@ -71,7 +71,7 @@ Cette partie est volontairement précise : vous pouvez tout vérifier dans le co
   « Se déconnecter » efface la session et les cookies.
 - **Peu d'autorisations** : Internet, notifications et lecture en arrière-plan. Pas d'accès aux contacts, au micro, à la position ni à vos fichiers.
 - **Pas de sauvegarde dans le cloud** des données de l'appli (`allowBackup` désactivé).
-- **Code ouvert**, sous licence libre. Aucun fichier d'installation n'est fourni pour l'instant : vous compilez l'appli vous-même à partir de ce que vous lisez ici.
+- **Code ouvert**, sous licence libre. Le fichier d'installation proposé est compilé à partir de ce code, sans rien de plus ; vous pouvez aussi le compiler vous-même.
 
 ### À savoir avant d'installer
 
@@ -82,7 +82,11 @@ en particulier si vous y connectez votre compte.
 
 ## Installer
 
-Il faut un ordinateur avec le JDK 17 et le SDK Android, et un téléphone sous Android 9 ou plus avec le débogage USB activé.
+**Le plus simple** : téléchargez le fichier `.apk` de la [dernière version](https://github.com/mochiiwuff/am-music/releases/latest) sur votre téléphone et ouvrez-le.
+Android demandera d'autoriser l'installation depuis cette source : c'est normal pour une appli hors Play Store.
+Chaque version indique l'empreinte SHA-256 de son fichier, pour vérifier qu'il n'a pas été modifié.
+
+**En compilant vous-même** : il faut un ordinateur avec le JDK 17 et le SDK Android, et un téléphone sous Android 9 ou plus avec le débogage USB activé.
 
 ```bash
 git clone https://github.com/mochiiwuff/am-music.git
