@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import app.ammusic.data.fake.FakeData
 import app.ammusic.ui.components.AmIcon
+import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.Artwork
 import app.ammusic.ui.components.LargeTitleScreen
@@ -25,24 +26,16 @@ import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.home.ProfileButton
 import app.ammusic.ui.theme.AmTheme
-import com.composables.icons.lucide.ChevronRight
-import com.composables.icons.lucide.CircleArrowDown
-import com.composables.icons.lucide.Clock
-import com.composables.icons.lucide.Disc3
-import com.composables.icons.lucide.Heart
-import com.composables.icons.lucide.ListMusic
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.MicVocal
 
 private data class LibraryEntry(val label: String, val icon: ImageVector)
 
 private val Entries = listOf(
-    LibraryEntry("Titres aimés", Lucide.Heart),
-    LibraryEntry("Playlists", Lucide.ListMusic),
-    LibraryEntry("Albums", Lucide.Disc3),
-    LibraryEntry("Artistes", Lucide.MicVocal),
-    LibraryEntry("Téléchargements", Lucide.CircleArrowDown),
-    LibraryEntry("Historique", Lucide.Clock),
+    LibraryEntry("Titres aimés", AmIcons.Heart),
+    LibraryEntry("Playlists", AmIcons.Playlist),
+    LibraryEntry("Albums", AmIcons.Album),
+    LibraryEntry("Artistes", AmIcons.Artist),
+    LibraryEntry("Téléchargements", AmIcons.Download),
+    LibraryEntry("Historique", AmIcons.Clock),
 )
 
 @Composable
@@ -88,6 +81,6 @@ private fun EntryRow(entry: LibraryEntry) {
     ) {
         AmIcon(entry.icon, tint = colors.accent, size = 24.dp)
         AmText(entry.label, style = AmTheme.type.body.copy(fontSize = AmTheme.type.section.fontSize.times(0.86f)), modifier = Modifier.weight(1f).padding(start = 14.dp), maxLines = 1)
-        AmIcon(Lucide.ChevronRight, tint = colors.textTertiary, size = 18.dp)
+        AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
     }
 }

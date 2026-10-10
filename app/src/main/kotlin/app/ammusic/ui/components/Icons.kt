@@ -1,0 +1,79 @@
+package app.ammusic.ui.components
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.unit.dp
+
+private const val Thin = 1.7f
+
+private class Part(val d: String, val fill: Boolean = false, val stroke: Float = Thin, val evenOdd: Boolean = false)
+
+private fun icon(name: String, vararg parts: Part): ImageVector =
+    ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).apply {
+        parts.forEach { part ->
+            addPath(
+                pathData = addPathNodes(part.d),
+                fill = if (part.fill) SolidColor(Color.Black) else null,
+                stroke = if (part.stroke > 0f) SolidColor(Color.Black) else null,
+                strokeLineWidth = part.stroke,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+                pathFillType = if (part.evenOdd) PathFillType.EvenOdd else PathFillType.NonZero,
+            )
+        }
+    }.build()
+
+private fun circle(cx: Float, cy: Float, r: Float) =
+    "M${cx - r} $cy a$r $r 0 1 0 ${2 * r} 0 a$r $r 0 1 0 ${-2 * r} 0 Z"
+
+private const val House = "M4 10.4 L12 3.8 L20 10.4 V18.4 A1.6 1.6 0 0 1 18.4 20 H5.6 A1.6 1.6 0 0 1 4 18.4 Z"
+private const val Shelf = "M5.1 10 H18.9 A1.6 1.6 0 0 1 20.5 11.6 V18.4 A1.6 1.6 0 0 1 18.9 20 H5.1 A1.6 1.6 0 0 1 3.5 18.4 V11.6 A1.6 1.6 0 0 1 5.1 10 Z"
+private const val Lens = "M10.8 4.2 A6.6 6.6 0 1 0 10.8 17.4 A6.6 6.6 0 1 0 10.8 4.2 Z"
+private const val HeartShape = "M12 20 C12 20 3.5 15.2 3.5 9.3 A4.4 4.4 0 0 1 12 7.3 A4.4 4.4 0 0 1 20.5 9.3 C20.5 15.2 12 20 12 20 Z"
+
+/** Jeu d'icônes dessiné pour AM Music : traits fins arrondis, versions pleines pour l'état actif. */
+object AmIcons {
+    val Home by lazy { icon("Home", Part(House), Part("M10 20 V15.4 A2 2 0 0 1 14 15.4 V20")) }
+    val HomeFilled by lazy {
+        icon("HomeFilled", Part("$House M10.2 20 V15.6 A1.8 1.8 0 0 1 13.8 15.6 V20 Z", fill = true, stroke = 1.2f, evenOdd = true))
+    }
+    val Search by lazy { icon("Search", Part(Lens), Part("M15.6 15.6 L20 20")) }
+    val SearchBold by lazy { icon("SearchBold", Part(Lens, stroke = 2.5f), Part("M15.8 15.8 L20 20", stroke = 2.5f)) }
+    val Library by lazy { icon("Library", Part(Shelf), Part("M6.5 6.9 H17.5"), Part("M9 3.9 H15")) }
+    val LibraryFilled by lazy {
+        icon("LibraryFilled", Part(Shelf, fill = true), Part("M6.5 6.9 H17.5", stroke = 2f), Part("M9 3.9 H15", stroke = 2f))
+    }
+
+    val Play by lazy { icon("Play", Part("M8 5.6 L18.4 12 L8 18.4 Z", fill = true, stroke = 2.2f)) }
+    val Pause by lazy {
+        icon("Pause", Part("M7.6 6 V18", stroke = 3.6f), Part("M16.4 6 V18", stroke = 3.6f))
+    }
+    val Next by lazy {
+        icon("Next", Part("M4.2 7.4 L11.4 12 L4.2 16.6 Z", fill = true, stroke = 1.8f), Part("M12.8 7.4 L20 12 L12.8 16.6 Z", fill = true, stroke = 1.8f))
+    }
+
+    val Heart by lazy { icon("Heart", Part(HeartShape)) }
+    val HeartFilled by lazy { icon("HeartFilled", Part(HeartShape, fill = true)) }
+    val More by lazy {
+        icon("More", Part(circle(6f, 12f, 1.5f), fill = true, stroke = 0f), Part(circle(12f, 12f, 1.5f), fill = true, stroke = 0f), Part(circle(18f, 12f, 1.5f), fill = true, stroke = 0f))
+    }
+    val ChevronRight by lazy { icon("ChevronRight", Part("M9.5 6 L15.5 12 L9.5 18")) }
+    val ChevronLeft by lazy { icon("ChevronLeft", Part("M14.5 6 L8.5 12 L14.5 18", stroke = 2f)) }
+    val Close by lazy { icon("Close", Part("M6.5 6.5 L17.5 17.5"), Part("M17.5 6.5 L6.5 17.5")) }
+
+    val User by lazy { icon("User", Part(circle(12f, 8.6f, 3.6f)), Part("M5 19.6 C5 16.6 8 14.9 12 14.9 C16 14.9 19 16.6 19 19.6")) }
+    val Playlist by lazy {
+        icon("Playlist", Part("M4 7 H13.5"), Part("M4 12 H10.5"), Part("M4 17 H8.5"), Part(circle(14.6f, 17.2f, 2.3f)), Part("M16.9 17.2 V6.6 L20.4 8.2"))
+    }
+    val Album by lazy { icon("Album", Part(circle(12f, 12f, 8.5f)), Part(circle(12f, 12f, 2.6f))) }
+    val Artist by lazy {
+        icon("Artist", Part("M9 6.6 A3 3 0 0 1 15 6.6 V11 A3 3 0 0 1 9 11 Z"), Part("M5.8 11 A6.2 6.2 0 0 0 18.2 11"), Part("M12 17.2 V20.5"))
+    }
+    val Download by lazy { icon("Download", Part(circle(12f, 12f, 8.5f)), Part("M12 7.6 V15.6"), Part("M8.6 12.4 L12 15.8 L15.4 12.4")) }
+    val Clock by lazy { icon("Clock", Part(circle(12f, 12f, 8.5f)), Part("M12 7.4 V12 L15.2 13.9")) }
+}

@@ -23,14 +23,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.ammusic.data.fake.FakeData
 import app.ammusic.ui.components.AmIcon
+import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.home.ProfileButton
 import app.ammusic.ui.home.TileRow
 import app.ammusic.ui.theme.AmTheme
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Search
 
 @Composable
 fun SearchScreen(onProfile: () -> Unit) {
@@ -57,7 +56,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AmIcon(Lucide.Search, tint = colors.textSecondary, size = 20.dp)
+        AmIcon(AmIcons.Search, tint = colors.textSecondary, size = 20.dp)
         Box(Modifier.padding(start = 10.dp).weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
                 AmText("Artistes, titres, albums…", color = colors.textTertiary, maxLines = 1)

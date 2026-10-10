@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.LargeTitleScreen
@@ -29,8 +30,6 @@ import app.ammusic.ui.components.slidingPill
 import app.ammusic.ui.theme.AccentChoices
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.ui.theme.ThemeMode
-import com.composables.icons.lucide.ChevronLeft
-import com.composables.icons.lucide.Lucide
 
 private val ThemeLabels = mapOf(ThemeMode.System to "Système", ThemeMode.Dark to "Sombre", ThemeMode.Light to "Clair")
 
@@ -45,7 +44,7 @@ fun SettingsScreen(
     val colors = AmTheme.colors
     LargeTitleScreen(
         title = "Réglages",
-        leading = { IconButton(Lucide.ChevronLeft, label = "Retour", onClick = onBack, tint = colors.accent, iconSize = 26.dp) },
+        leading = { IconButton(AmIcons.ChevronLeft, label = "Retour", onClick = onBack, tint = colors.accent, iconSize = 26.dp) },
     ) {
         item(key = "themeLabel") { Label("Thème") }
         item(key = "theme") { ThemePicker(themeMode, onThemeMode) }

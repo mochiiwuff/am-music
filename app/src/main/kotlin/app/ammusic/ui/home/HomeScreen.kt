@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.em
 import app.ammusic.data.fake.FakeData
 import app.ammusic.domain.model.MediaCard
 import app.ammusic.ui.components.AmIcon
+import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.Artwork
 import app.ammusic.ui.components.IconButton
@@ -43,9 +44,6 @@ import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.theme.AmTheme
-import com.composables.icons.lucide.Ellipsis
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.User
 
 @Composable
 fun HomeScreen(onProfile: () -> Unit) {
@@ -73,7 +71,7 @@ fun ProfileButton(onClick: () -> Unit) {
     val colors = AmTheme.colors
     Box(Modifier.size(48.dp).pressable(scale = 0.88f, label = "Réglages", onClick = onClick), contentAlignment = Alignment.Center) {
         Box(Modifier.size(32.dp).clip(CircleShape).background(colors.surfaceHigh), contentAlignment = Alignment.Center) {
-            AmIcon(Lucide.User, tint = colors.accent, size = 18.dp)
+            AmIcon(AmIcons.User, tint = colors.accent, size = 18.dp)
         }
     }
 }
@@ -145,7 +143,7 @@ private fun TrackGrid(tracks: List<MediaCard>) {
                     AmText(track.title, style = AmTheme.type.subhead, maxLines = 1)
                     AmText(track.subtitle, style = AmTheme.type.footnote, color = AmTheme.colors.textSecondary, maxLines = 1)
                 }
-                IconButton(Lucide.Ellipsis, label = "Plus d'options", onClick = {}, tint = AmTheme.colors.textSecondary, iconSize = 20.dp)
+                IconButton(AmIcons.More, label = "Plus d'options", onClick = {}, tint = AmTheme.colors.textSecondary, iconSize = 20.dp)
             }
         }
     }

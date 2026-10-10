@@ -10,7 +10,6 @@ navigation = "2.10.2"
 hilt = "2.60.1"
 serializationJson = "1.11.0"
 haze = "2.0.1"
-lucide = "1.1.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -26,7 +25,6 @@ hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.re
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 haze-blur = { module = "dev.chrisbanes.haze:haze-blur", version.ref = "haze" }
-lucide = { module = "com.composables:icons-lucide", version.ref = "lucide" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

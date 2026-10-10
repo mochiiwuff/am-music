@@ -27,18 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import app.ammusic.domain.model.MediaCard
 import app.ammusic.ui.theme.AmTheme
-import com.composables.icons.lucide.House
-import com.composables.icons.lucide.Library
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Pause
-import com.composables.icons.lucide.Play
-import com.composables.icons.lucide.Search
-import com.composables.icons.lucide.SkipForward
 
-enum class Tab(val label: String, val icon: ImageVector) {
-    Home("Accueil", Lucide.House),
-    Search("Recherche", Lucide.Search),
-    Library("Bibliothèque", Lucide.Library),
+enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
+    Home("Accueil", AmIcons.Home, AmIcons.HomeFilled),
+    Search("Recherche", AmIcons.Search, AmIcons.SearchBold),
+    Library("Bibliothèque", AmIcons.Library, AmIcons.LibraryFilled),
 }
 
 private val TabBarHeight = 64.dp
@@ -130,7 +123,7 @@ private fun TabBar(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    AmIcon(tab.icon, tint = tint)
+                    AmIcon(if (tab == current) tab.selectedIcon else tab.icon, tint = tint)
                     Spacer(Modifier.height(4.dp))
                     AmText(tab.label, style = AmTheme.type.caption, color = tint, maxLines = 1)
                 }
@@ -140,7 +133,7 @@ private fun TabBar(
             Modifier.fillMaxSize().graphicsLayer { alpha = ((progress() - 0.55f) * 2.2f).coerceIn(0f, 1f) },
             contentAlignment = Alignment.Center,
         ) {
-            AmIcon(current.icon, tint = colors.accent)
+            AmIcon(current.selectedIcon, tint = colors.accent)
         }
         if (collapsed) {
             Box(Modifier.fillMaxSize().pressable(scale = 0.9f, haptic = true, label = "Afficher les onglets", onClick = onExpand))
@@ -161,10 +154,10 @@ private fun MiniPlayer(track: MediaCard, playing: Boolean, onTogglePlay: () -> U
             AmText(track.subtitle, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
         IconButton(
-            icon = if (playing) Lucide.Pause else Lucide.Play,
+            icon = if (playing) AmIcons.Pause else AmIcons.Play,
             label = if (playing) "Pause" else "Lecture",
             onClick = onTogglePlay,
         )
-        IconButton(icon = Lucide.SkipForward, label = "Titre suivant", onClick = {})
+        IconButton(icon = AmIcons.Next, label = "Titre suivant", onClick = {})
     }
 }
