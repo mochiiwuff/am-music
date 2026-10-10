@@ -35,6 +35,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +61,8 @@ import app.ammusic.youtube.model.YtItem
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.model.thumbnailAt
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -104,8 +108,18 @@ fun Cover(
     } else {
         Modifier
     }
+    // L'image est décodée telle que le serveur l'envoie ([requestSize]), et non à la taille de la vue au moment
+    // de la demande : une pochette qui grandit ensuite (mini-lecteur → plein écran) resterait floue.
+    val context = LocalPlatformContext.current
+    // Si la grande version n'existe pas (vignette de clip ancien), on retombe sur l'adresse d'origine.
+    var resizedFailed by remember(url, requestSize) { mutableStateOf(false) }
+    val request = remember(url, requestSize, resizedFailed) {
+        val data = if (resizedFailed) url else url?.thumbnailAt(requestSize)
+        ImageRequest.Builder(context).data(data).size(coil3.size.Size.ORIGINAL).build()
+    }
     AsyncImage(
-        model = url?.thumbnailAt(requestSize),
+        model = request,
+        onError = { resizedFailed = true },
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier.sharedCover(sharedKey).then(shadow).clip(shape).then(fill),

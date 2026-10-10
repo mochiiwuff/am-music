@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -64,15 +65,35 @@ fun FloatingBars(
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Sans titre chargé, pas de mini-lecteur : la barre d'onglets reste seule, entière.
+    val hasTrack = player.track != null
+    val folded = collapsed && hasTrack
     val progress = animateFloatAsState(
-        targetValue = if (collapsed) 1f else 0f,
+        targetValue = if (folded) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.84f, stiffness = 300f),
         label = "bars",
     )
+    val presence = animateFloatAsState(
+        targetValue = if (hasTrack) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 260f),
+        label = "miniPresence",
+    )
     Layout(
         content = {
-            TabBar(current, onSelect, collapsed, { progress.value }, onExpand)
-            MiniPlayer(player, sheet, onTogglePlay, onNext)
+            TabBar(current, onSelect, folded, { progress.value }, onExpand)
+            if (hasTrack || presence.value > 0.01f) {
+                // Au premier titre, le mini-lecteur monte de derrière la barre d'onglets.
+                Box(
+                    Modifier.graphicsLayer {
+                        val shown = presence.value.coerceIn(0f, 1f)
+                        alpha = shown
+                        scaleX = 0.94f + 0.06f * presence.value
+                        scaleY = scaleX
+                    },
+                ) {
+                    MiniPlayer(player, sheet, onTogglePlay, onNext)
+                }
+            }
         },
         modifier = modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
     ) { measurables, constraints ->
@@ -85,12 +106,13 @@ fun FloatingBars(
         val tabW = lerp(width, miniHeight, t)
         val tabH = lerp(tabHeight, miniHeight, t)
         val miniX = lerp(0, miniHeight + gap, t)
-        val height = lerp(tabHeight + gap + miniHeight, miniHeight, t)
+        val miniSpace = ((gap + miniHeight) * presence.value.coerceAtLeast(0f)).roundToInt()
+        val height = lerp(tabHeight + miniSpace, miniHeight, t)
 
         val tab = measurables[0].measure(Constraints.fixed(tabW, tabH))
-        val mini = measurables[1].measure(Constraints.fixed(width - miniX, miniHeight))
+        val mini = measurables.getOrNull(1)?.measure(Constraints.fixed(width - miniX, miniHeight))
         layout(width, height) {
-            mini.place(miniX, 0)
+            mini?.place(miniX, 0)
             tab.place(0, height - tabH)
         }
     }

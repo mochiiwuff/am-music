@@ -88,9 +88,16 @@ data class YtMood(val title: String, val color: Long, val browseId: String, val 
 private val SizeSuffix = Regex("=w\\d+-h\\d+.*$")
 private val SquareSuffix = Regex("=s\\d+.*$")
 
-/** Demande la vignette à la taille voulue (en pixels) quand l'URL le permet. */
+private val VideoThumbnail = Regex("^https://i\\.ytimg\\.com/vi(?:_webp)?/([^/]+)/.*$")
+
+/**
+ * Demande la vignette à la taille voulue (en pixels) quand l'URL le permet.
+ * Les clips n'ont que des vignettes de vidéo à tailles fixes : en grand, on prend la version 1280 × 720
+ * (absente pour de rares vidéos anciennes : prévoir une image de repli en dessous).
+ */
 fun String.thumbnailAt(size: Int): String = when {
     SizeSuffix.containsMatchIn(this) -> replace(SizeSuffix, "=w$size-h$size-l90-rj")
     SquareSuffix.containsMatchIn(this) -> replace(SquareSuffix, "=s$size")
+    size >= 720 -> VideoThumbnail.matchEntire(this)?.let { "https://i.ytimg.com/vi/${it.groupValues[1]}/hq720.jpg" } ?: this
     else -> this
 }

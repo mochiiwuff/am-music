@@ -424,6 +424,6 @@ private fun SharedArtwork(
     ) {
         // La petite image est déjà en mémoire (mini-lecteur) : elle évite un trou pendant que la grande charge.
         Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 160)
-        Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 720, placeholder = false)
+        Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 1080, placeholder = false)
     }
 }
