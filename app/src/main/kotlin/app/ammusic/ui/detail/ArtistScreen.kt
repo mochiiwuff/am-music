@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -146,7 +147,8 @@ private fun ArtistHero(state: ArtistState, route: ArtistRoute, list: LazyListSta
         label = "rounding",
     ) { if (it == EnterExitState.Visible) 0f else 50f }
 
-    Box(Modifier.fillMaxWidth().aspectRatio(0.94f)) {
+    // Coupée à ses bords : la photo glisse moins vite que la page, mais ne déborde jamais sur la suite.
+    Box(Modifier.fillMaxWidth().aspectRatio(0.94f).clipToBounds()) {
         Box(
             Modifier
                 .fillMaxSize()
