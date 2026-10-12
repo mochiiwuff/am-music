@@ -379,50 +379,45 @@ private fun BigButton(icon: ImageVector, label: String, onClick: () -> Unit, ena
 
 @Composable
 private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit, badge: Boolean = false) {
+    val accent = AmTheme.colors.accent
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val settle = spring<Float>(dampingRatio = 1f, stiffness = 440f)
     val on by animateFloatAsState(if (active) 1f else 0f, settle, label = "on")
-    val touch by animateFloatAsState(if (pressed) 1f else 0f, if (pressed) spring(dampingRatio = 1f, stiffness = 2400f) else settle, label = "touch")
     val mark by animateFloatAsState(if (badge) 1f else 0f, settle, label = "badge")
     val tint by animateColorAsState(
-        targetValue = if (active) Color(0xE6000000) else if (pressed) Color.White else Soft,
-        animationSpec = spring(dampingRatio = 1f, stiffness = 440f),
+        targetValue = if (active) accent else if (pressed) Color.White else Soft,
+        animationSpec = if (pressed) spring(dampingRatio = 1f, stiffness = 2400f) else spring(dampingRatio = 1f, stiffness = 440f),
         label = "tint",
     )
     Box(
-        Modifier.size(56.dp).pressable(scale = 0.94f, haptic = true, label = label, source = interaction, onClick = onClick),
+        Modifier.size(56.dp).pressable(scale = 0.9f, haptic = true, label = label, source = interaction, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .size(width = 48.dp, height = 40.dp)
-                .graphicsLayer {
-                    alpha = on * 0.95f * (1f - 0.22f * touch) + (1f - on) * 0.2f * touch
-                    val grow = 0.9f + 0.1f * maxOf(on, touch)
-                    scaleX = grow
-                    scaleY = grow
-                }
-                .clip(RoundedCornerShape(13.dp))
-                .background(Color.White),
+        AmIcon(icon, tint = tint, size = 26.dp)
+        AmText(
+            text = "1",
+            style = AmTheme.type.caption.copy(fontSize = 11.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold),
+            color = accent,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 7.dp, end = 7.dp).graphicsLayer {
+                alpha = mark
+                scaleX = 0.6f + 0.4f * mark
+                scaleY = scaleX
+            },
         )
-        AmIcon(icon, tint = tint, size = 24.dp)
         Box(
             Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 3.dp)
-                .size(17.dp)
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 5.dp)
+                .size(4.dp)
                 .graphicsLayer {
-                    alpha = mark
-                    scaleX = 0.6f + 0.4f * mark
-                    scaleY = scaleX
+                    alpha = on
+                    scaleX = on
+                    scaleY = on
                 }
                 .clip(CircleShape)
-                .background(AmTheme.colors.accent),
-            contentAlignment = Alignment.Center,
-        ) {
-            AmText("1", style = AmTheme.type.caption.copy(fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold), color = Color.White)
-        }
+                .background(accent),
+        )
     }
 }
 
