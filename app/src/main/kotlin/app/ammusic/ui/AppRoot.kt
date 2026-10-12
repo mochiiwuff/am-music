@@ -60,6 +60,8 @@ import app.ammusic.ui.components.LocalNowPlaying
 import app.ammusic.ui.components.LocalScreenScope
 import app.ammusic.ui.components.LocalSharedScope
 import app.ammusic.ui.components.MenuAction
+import app.ammusic.ui.components.MenuArtwork
+import app.ammusic.ui.components.NoticeHost
 import app.ammusic.ui.components.NowPlaying
 import app.ammusic.ui.components.RowCoverSize
 import app.ammusic.ui.components.Tab
@@ -158,7 +160,9 @@ fun AppRoot(
             promptRequest = PromptRequest(tr("Nouvelle playlist", "New playlist"), "") { title -> libraryViewModel.addToNewPlaylist(title, track) }
         }
         val existing = playlists.filter { it.editable }.map { playlist ->
-            MenuAction(AmIcons.Playlist, playlist.title) { libraryViewModel.addToPlaylist(playlist, track) }
+            MenuAction(AmIcons.Playlist, playlist.title, detail = playlist.subtitle, artwork = MenuArtwork(playlist.thumbnail)) {
+                libraryViewModel.addToPlaylist(playlist, track)
+            }
         }
         sheetRequest = MenuRequest(tr("Ajouter à une playlist", "Add to a playlist"), track.title, track.thumbnail, listOf(create) + existing)
     }
@@ -281,6 +285,7 @@ fun AppRoot(
 
             MenuSheet(sheetRequest, onDismiss = { sheetRequest = null })
             TextPrompt(promptRequest, onDismiss = { promptRequest = null })
+            NoticeHost(libraryViewModel.notices, Modifier.align(Alignment.TopCenter))
         }
     }
 }

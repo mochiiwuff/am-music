@@ -42,7 +42,16 @@ import androidx.compose.ui.unit.dp
 import app.ammusic.ui.theme.AmTheme
 import kotlinx.coroutines.launch
 
-class MenuAction(val icon: ImageVector, val label: String, val destructive: Boolean = false, val onClick: () -> Unit)
+class MenuArtwork(val url: String?)
+
+class MenuAction(
+    val icon: ImageVector,
+    val label: String,
+    val destructive: Boolean = false,
+    val detail: String? = null,
+    val artwork: MenuArtwork? = null,
+    val onClick: () -> Unit,
+)
 
 class MenuRequest(val title: String, val subtitle: String, val thumbnail: String?, val actions: List<MenuAction>)
 
@@ -125,13 +134,20 @@ fun MenuSheet(request: MenuRequest?, onDismiss: () -> Unit) {
                                 onDismiss()
                                 action.onClick()
                             }
-                            .height(54.dp)
+                            .height(if (action.artwork != null) 62.dp else 54.dp)
                             .padding(horizontal = 24.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val tint = if (action.destructive) colors.accent else colors.text
-                        AmIcon(action.icon, tint = tint, size = 22.dp)
-                        AmText(action.label, color = tint, maxLines = 1, modifier = Modifier.padding(start = 18.dp))
+                        if (action.artwork != null) {
+                            Cover(action.artwork.url, Modifier.size(46.dp), corner = 7.dp, requestSize = RowCoverSize, glyph = action.icon)
+                        } else {
+                            AmIcon(action.icon, tint = tint, size = 22.dp)
+                        }
+                        Column(Modifier.padding(start = if (action.artwork != null) 14.dp else 18.dp)) {
+                            AmText(action.label, color = tint, maxLines = 1)
+                            if (action.detail != null) AmText(action.detail, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
+                        }
                     }
                 }
             }

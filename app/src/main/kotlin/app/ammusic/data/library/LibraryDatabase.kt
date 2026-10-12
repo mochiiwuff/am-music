@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Insert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
@@ -65,7 +67,7 @@ object PlaylistKind {
 }
 
 @Entity(tableName = "playlist_tracks", primaryKeys = ["playlistId", "trackId"])
-data class PlaylistTrackRow(val playlistId: String, val trackId: String, val position: Long)
+data class PlaylistTrackRow(val playlistId: String, val trackId: String, val position: Long, val setVideoId: String? = null)
 
 @Dao
 abstract class LibraryDao {
@@ -145,32 +147,60 @@ abstract class LibraryDao {
     @Query("SELECT * FROM playlists WHERE id = :id")
     abstract fun playlist(id: String): Flow<PlaylistRow?>
 
+    @Query("SELECT * FROM playlists WHERE id = :id")
+    abstract suspend fun playlistRow(id: String): PlaylistRow?
+
+    @Query("SELECT id FROM playlists WHERE kind != 2")
+    abstract suspend fun editablePlaylistIds(): List<String>
+
+    @Query("SELECT id FROM playlists WHERE kind = 1")
+    abstract suspend fun minePlaylistIds(): List<String>
+
     @Upsert
     abstract suspend fun upsertPlaylists(rows: List<PlaylistRow>)
 
     @Query("UPDATE playlists SET title = :title WHERE id = :id")
     abstract suspend fun renamePlaylist(id: String, title: String)
 
-    @Query("UPDATE playlists SET thumbnail = :thumbnail WHERE id = :id")
-    abstract suspend fun setPlaylistThumbnail(id: String, thumbnail: String?)
+    @Query("UPDATE playlists SET thumbnail = :thumbnail, subtitle = :subtitle WHERE id = :id")
+    abstract suspend fun setPlaylistSummary(id: String, thumbnail: String?, subtitle: String)
 
     @Query("DELETE FROM playlists WHERE id = :id")
     abstract suspend fun deletePlaylistRow(id: String)
 
-    @Query("DELETE FROM playlists WHERE kind != 0")
-    abstract suspend fun clearRemotePlaylists()
+    @Query("DELETE FROM playlists WHERE kind != 0 AND NOT (kind = 1 AND addedAt > :keepAfter)")
+    abstract suspend fun clearRemotePlaylists(keepAfter: Long)
+
+    @Query("DELETE FROM playlist_tracks WHERE playlistId NOT IN (SELECT id FROM playlists)")
+    abstract suspend fun deleteOrphanPlaylistTracks()
 
     @Transaction
-    open suspend fun replaceRemotePlaylists(rows: List<PlaylistRow>) {
-        clearRemotePlaylists()
+    open suspend fun replaceRemotePlaylists(rows: List<PlaylistRow>, keepAfter: Long) {
+        clearRemotePlaylists(keepAfter)
         upsertPlaylists(rows)
+        deleteOrphanPlaylistTracks()
     }
 
     @Query("SELECT tracks.* FROM playlist_tracks JOIN tracks ON tracks.id = playlist_tracks.trackId WHERE playlistId = :playlistId ORDER BY position")
     abstract fun playlistTracks(playlistId: String): Flow<List<TrackRow>>
 
+    @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId = :playlistId")
+    abstract suspend fun playlistTrackCount(playlistId: String): Int
+
+    @Query("SELECT COUNT(*) FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
+    abstract suspend fun countPlaylistTrack(playlistId: String, trackId: String): Int
+
+    @Query("SELECT setVideoId FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
+    abstract suspend fun setVideoId(playlistId: String, trackId: String): String?
+
+    @Query("UPDATE playlist_tracks SET setVideoId = :setVideoId WHERE playlistId = :playlistId AND trackId = :trackId")
+    abstract suspend fun setSetVideoId(playlistId: String, trackId: String, setVideoId: String)
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract suspend fun insertPlaylistTrack(row: PlaylistTrackRow)
+
+    @Upsert
+    abstract suspend fun upsertPlaylistTracks(rows: List<PlaylistTrackRow>)
 
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
     abstract suspend fun deletePlaylistTrack(playlistId: String, trackId: String)
@@ -178,8 +208,21 @@ abstract class LibraryDao {
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
     abstract suspend fun clearPlaylistTracks(playlistId: String)
 
-    @Query("SELECT tracks.thumbnail FROM playlist_tracks JOIN tracks ON tracks.id = playlist_tracks.trackId WHERE playlistId = :playlistId ORDER BY position LIMIT 1")
-    abstract suspend fun firstThumbnail(playlistId: String): String?
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND position <= :keepAfter")
+    abstract suspend fun clearSyncedPlaylistTracks(playlistId: String, keepAfter: Long)
+
+    @Query(
+        "SELECT tracks.thumbnail FROM playlist_tracks JOIN tracks ON tracks.id = playlist_tracks.trackId " +
+            "WHERE playlistId = :playlistId AND tracks.thumbnail IS NOT NULL ORDER BY position LIMIT 16",
+    )
+    abstract suspend fun leadingThumbnails(playlistId: String): List<String>
+
+    @Transaction
+    open suspend fun replacePlaylistTracks(playlistId: String, tracks: List<TrackRow>, rows: List<PlaylistTrackRow>, keepAfter: Long) {
+        clearSyncedPlaylistTracks(playlistId, keepAfter)
+        upsertTracks(tracks)
+        upsertPlaylistTracks(rows)
+    }
 
     @Transaction
     open suspend fun deletePlaylist(id: String) {
@@ -188,9 +231,15 @@ abstract class LibraryDao {
     }
 }
 
+val Migration1To2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE playlist_tracks ADD COLUMN setVideoId TEXT")
+    }
+}
+
 @Database(
     entities = [TrackRow::class, LikedRow::class, HistoryRow::class, AlbumRow::class, ArtistRow::class, PlaylistRow::class, PlaylistTrackRow::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class LibraryDatabase : RoomDatabase() {

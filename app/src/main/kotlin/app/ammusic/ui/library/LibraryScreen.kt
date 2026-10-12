@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -174,7 +175,6 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
         leading = { IconButton(AmIcons.ChevronLeft, label = tr("Retour", "Back"), onClick = actions.back) },
         trailing = {
             when {
-                kind == LibraryKind.Playlists -> IconButton(AmIcons.Plus, label = tr("Nouvelle playlist", "New playlist"), onClick = newPlaylist, tint = AmTheme.colors.accent)
                 kind == LibraryKind.History && history.isNotEmpty() ->
                     IconButton(AmIcons.Trash, label = tr("Effacer l'historique", "Clear history"), onClick = viewModel::clearHistory, tint = AmTheme.colors.textSecondary)
             }
@@ -193,8 +193,13 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
                 rows(artists, origin)
             }
             else -> {
-                if (playlists.isEmpty()) item(key = "empty") { Hint(tr("Touchez « + » pour créer votre première playlist.", "Tap “+” to create your first playlist.")) }
+                item(key = "new", contentType = "new") { NewPlaylistRow(newPlaylist) }
                 rows(playlists, origin)
+                if (playlists.isEmpty()) {
+                    item(key = "empty") {
+                        Hint(tr("Rangez vos titres préférés dans des playlists : elles apparaîtront ici.", "Collect your favourite songs in playlists: they will show up here."))
+                    }
+                }
             }
         }
     }
@@ -226,5 +231,22 @@ private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyHin
             modifier = Modifier.fillMaxWidth().animateItem().padding(horizontal = 20.dp, vertical = 6.dp),
             onClick = { actions.playAll(tracks, index, null) },
         )
+    }
+}
+
+@Composable
+private fun NewPlaylistRow(onClick: () -> Unit) {
+    val colors = AmTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .pressable(scale = 0.98f, haptic = true, label = tr("Nouvelle playlist", "New playlist"), onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+            AmIcon(AmIcons.Plus, tint = colors.accent, size = 24.dp)
+        }
+        AmText(tr("Nouvelle playlist…", "New playlist…"), style = AmTheme.type.subhead, color = colors.accent, modifier = Modifier.padding(start = 12.dp))
     }
 }

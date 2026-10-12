@@ -15,26 +15,54 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val LocalPrefix = "LOCAL_"
 private const val StaleAfterMs = 10 * 60 * 1000L
+private const val RecentMs = 10 * 60 * 1000L
+private const val RefreshEveryMs = 2 * 60 * 1000L
+private const val MaxPlaylistPages = 20
+private const val Tag = "AmLibrary"
+
+const val CoverSeparator = '\n'
+
+data class LibraryNotice(val text: String, val failed: Boolean = false)
+
+fun songCount(count: Int): String = when (count) {
+    0 -> tr("Aucun titre", "No songs")
+    1 -> tr("1 titre", "1 song")
+    else -> tr("$count titres", "$count songs")
+}
+
+fun playlistCover(thumbnails: List<String>): String? {
+    val distinct = thumbnails.distinct()
+    return if (distinct.size >= 4) distinct.take(4).joinToString(CoverSeparator.toString()) else distinct.firstOrNull()
+}
 
 @Singleton
 class LibraryRepository @Inject constructor(@ApplicationContext context: Context) {
-    private val dao = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").build().dao()
+    private val dao = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").addMigrations(Migration1To2).build().dao()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastSync = 0L
+    private val refreshedAt = ConcurrentHashMap<String, Long>()
+    private val removedAt = ConcurrentHashMap<Pair<String, String>, Long>()
+    private val _notices = MutableSharedFlow<LibraryNotice>(extraBufferCapacity = 8)
+    val notices: SharedFlow<LibraryNotice> = _notices.asSharedFlow()
 
     val liked: Flow<List<YtTrack>> = dao.liked().map { rows -> rows.map { it.toTrack() } }
     val history: Flow<List<YtTrack>> = dao.history().map { rows -> rows.map { it.toTrack() } }
@@ -53,6 +81,10 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
     }.stateIn(scope, SharingStarted.Eagerly, emptySet())
 
     private val signedIn get() = YouTubeMusic.isSignedIn
+
+    init {
+        scope.launch { dao.editablePlaylistIds().forEach { refreshSummary(it) } }
+    }
 
     fun isLocal(playlistId: String) = playlistId.startsWith(LocalPrefix)
 
@@ -87,12 +119,16 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
 
     suspend fun createPlaylist(title: String): String? = withContext(Dispatchers.IO) {
         if (signedIn) {
-            val id = YouTubeMusic.createPlaylist(title).getOrNull() ?: return@withContext null
-            dao.upsertPlaylists(listOf(PlaylistRow(id, title, tr("Votre playlist", "Your playlist"), null, now(), PlaylistKind.Mine)))
+            val id = YouTubeMusic.createPlaylist(title).getOrElse { error ->
+                Log.w(Tag, "création de playlist : échec (${error.javaClass.simpleName} : ${error.message?.take(200)})")
+                notify(tr("La playlist n'a pas pu être créée", "The playlist could not be created"), failed = true)
+                return@withContext null
+            }
+            dao.upsertPlaylists(listOf(PlaylistRow(id, title, songCount(0), null, now(), PlaylistKind.Mine)))
             id
         } else {
             val id = LocalPrefix + UUID.randomUUID()
-            dao.upsertPlaylists(listOf(PlaylistRow(id, title, tr("Sur ce téléphone", "On this phone"), null, now(), PlaylistKind.Local)))
+            dao.upsertPlaylists(listOf(PlaylistRow(id, title, songCount(0), null, now(), PlaylistKind.Local)))
             id
         }
     }
@@ -107,27 +143,102 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         if (!isLocal(id)) YouTubeMusic.deletePlaylist(id)
     }
 
+    suspend fun isMine(playlistId: String): Boolean = dao.playlistRow(playlistId)?.kind == PlaylistKind.Mine
+
     fun addToPlaylist(playlistId: String, track: YtTrack) = scope.launch {
-        if (isLocal(playlistId)) {
-            dao.upsertTracks(listOf(track.toRow()))
-            dao.insertPlaylistTrack(PlaylistTrackRow(playlistId, track.id, now()))
-            dao.setPlaylistThumbnail(playlistId, dao.firstThumbnail(playlistId))
-        } else {
-            YouTubeMusic.addToPlaylist(playlistId, track.id)
+        val playlist = dao.playlistRow(playlistId) ?: return@launch
+        if (dao.countPlaylistTrack(playlistId, track.id) > 0) {
+            notify(tr("Déjà dans « ${playlist.title} »", "Already in “${playlist.title}”"))
+            return@launch
         }
+        dao.upsertTracks(listOf(track.toRow()))
+        dao.insertPlaylistTrack(PlaylistTrackRow(playlistId, track.id, now()))
+        refreshSummary(playlistId)
+        val added = tr("Ajouté à « ${playlist.title} »", "Added to “${playlist.title}”")
+        if (isLocal(playlistId)) {
+            notify(added)
+            return@launch
+        }
+        twice { YouTubeMusic.addToPlaylist(playlistId, track.id) }.fold(
+            onSuccess = { setVideoId ->
+                if (setVideoId != null) dao.setSetVideoId(playlistId, track.id, setVideoId)
+                notify(added)
+                if (now() - (refreshedAt[playlistId] ?: 0L) > RefreshEveryMs) refreshPlaylist(playlistId)
+            },
+            onFailure = { error ->
+                Log.w(Tag, "ajout à la playlist : échec (${error.javaClass.simpleName} : ${error.message?.take(200)})")
+                dao.deletePlaylistTrack(playlistId, track.id)
+                refreshSummary(playlistId)
+                notify(tr("L'ajout à « ${playlist.title} » a échoué", "Could not add to “${playlist.title}”"), failed = true)
+            },
+        )
     }
 
     fun removeFromPlaylist(playlistId: String, track: YtTrack) = scope.launch {
-        if (isLocal(playlistId)) {
-            dao.deletePlaylistTrack(playlistId, track.id)
-            dao.setPlaylistThumbnail(playlistId, dao.firstThumbnail(playlistId))
-        } else {
-            track.setVideoId?.let { YouTubeMusic.removeFromPlaylist(playlistId, track.id, it) }
+        val known = track.setVideoId ?: dao.setVideoId(playlistId, track.id)
+        dao.deletePlaylistTrack(playlistId, track.id)
+        refreshSummary(playlistId)
+        if (isLocal(playlistId)) return@launch
+        removedAt[playlistId to track.id] = now()
+        val setVideoId = known ?: remoteTracks(playlistId)?.firstOrNull { it.id == track.id }?.setVideoId
+        val removed = setVideoId != null && twice { YouTubeMusic.removeFromPlaylist(playlistId, track.id, setVideoId) }.isSuccess
+        if (!removed) {
+            Log.w(Tag, "retrait de la playlist : échec pour ${track.id}")
+            removedAt.remove(playlistId to track.id)
+            refreshPlaylist(playlistId)
+            notify(tr("Le retrait de « ${track.title} » a échoué", "Could not remove “${track.title}”"), failed = true)
         }
     }
 
-    fun localPlaylist(id: String): Flow<Pair<YtPlaylist?, List<YtTrack>>> =
+    fun playlistWithTracks(id: String): Flow<Pair<YtPlaylist?, List<YtTrack>>> =
         combine(dao.playlist(id), dao.playlistTracks(id)) { row, tracks -> row?.toPlaylist() to tracks.map { it.toTrack() } }
+
+    suspend fun refreshPlaylist(playlistId: String): Boolean = withContext(Dispatchers.IO) {
+        if (dao.playlistRow(playlistId) == null) return@withContext false
+        val tracks = remoteTracks(playlistId) ?: return@withContext false
+        val recent = now() - RecentMs
+        val kept = tracks.filterNot { (removedAt[playlistId to it.id] ?: 0L) > recent }
+        dao.replacePlaylistTracks(
+            playlistId = playlistId,
+            tracks = kept.map { it.toRow() },
+            rows = kept.mapIndexed { index, track -> PlaylistTrackRow(playlistId, track.id, index.toLong(), track.setVideoId) },
+            keepAfter = recent,
+        )
+        refreshedAt[playlistId] = now()
+        refreshSummary(playlistId)
+        Log.d(Tag, "playlist $playlistId : ${kept.size} titres recopiés")
+        true
+    }
+
+    private suspend fun remoteTracks(playlistId: String): List<YtTrack>? {
+        val page = YouTubeMusic.playlist(playlistId).getOrElse { return null }
+        val tracks = page.tracks.toMutableList()
+        var token = page.continuation
+        var pages = 0
+        while (token != null && pages++ < MaxPlaylistPages) {
+            val (more, next) = YouTubeMusic.playlistMore(token).getOrElse { return null }
+            tracks += more
+            token = next
+        }
+        return tracks.distinctBy { it.id }
+    }
+
+    private suspend fun refreshSummary(playlistId: String) {
+        val count = dao.playlistTrackCount(playlistId)
+        val mirrored = isLocal(playlistId) || count > 0 || refreshedAt.containsKey(playlistId)
+        if (mirrored) dao.setPlaylistSummary(playlistId, playlistCover(dao.leadingThumbnails(playlistId)), songCount(count))
+    }
+
+    private suspend fun <T> twice(call: suspend () -> Result<T>): Result<T> {
+        val first = call()
+        if (first.isSuccess) return first
+        delay(1_200)
+        return call()
+    }
+
+    private fun notify(text: String, failed: Boolean = false) {
+        _notices.tryEmit(LibraryNotice(text, failed))
+    }
 
     fun recordPlay(track: YtTrack) = scope.launch {
         dao.upsertTracks(listOf(track.toRow()))
@@ -158,11 +269,14 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
             }
             launch {
                 YouTubeMusic.libraryPlaylists().logged("playlists") { it.size }.onSuccess { playlists ->
+                    val mine = dao.minePlaylistIds().toSet()
                     dao.replaceRemotePlaylists(
-                        playlists.mapIndexed { index, playlist ->
-                            playlist.toRow(start - index, if (playlist.editable) PlaylistKind.Mine else PlaylistKind.Saved)
+                        rows = playlists.mapIndexed { index, playlist ->
+                            playlist.toRow(start - index, if (playlist.editable || playlist.id in mine) PlaylistKind.Mine else PlaylistKind.Saved)
                         },
+                        keepAfter = start - RecentMs,
                     )
+                    dao.editablePlaylistIds().forEach { refreshSummary(it) }
                 }
             }
         }
@@ -172,7 +286,10 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         dao.clearRemoteLiked()
         dao.clearRemoteAlbums()
         dao.clearRemoteArtists()
-        dao.clearRemotePlaylists()
+        dao.clearRemotePlaylists(Long.MAX_VALUE)
+        dao.deleteOrphanPlaylistTracks()
+        refreshedAt.clear()
+        removedAt.clear()
         lastSync = 0L
     }
 
@@ -193,7 +310,7 @@ private fun PlaylistRow.toPlaylist() = YtPlaylist(id, title, subtitle, thumbnail
 
 private fun <T> Result<T>.logged(what: String, size: (T) -> Int): Result<T> = also { result ->
     result.fold(
-        onSuccess = { Log.d("AmLibrary", "$what : ${size(it)} reçus") },
-        onFailure = { Log.w("AmLibrary", "$what : échec (${it.javaClass.simpleName} : ${it.message?.take(200)})") },
+        onSuccess = { Log.d(Tag, "$what : ${size(it)} reçus") },
+        onFailure = { Log.w(Tag, "$what : échec (${it.javaClass.simpleName} : ${it.message?.take(200)})") },
     )
 }

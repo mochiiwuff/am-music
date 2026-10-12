@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -31,6 +32,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,6 +41,8 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.ammusic.data.library.CoverSeparator
+import app.ammusic.data.library.songCount
 import app.ammusic.ui.CollectionRoute
 import app.ammusic.ui.CollectionState
 import app.ammusic.ui.CollectionViewModel
@@ -56,6 +61,7 @@ import app.ammusic.ui.components.LocalNowPlaying
 import app.ammusic.ui.components.NowPlayingBars
 import app.ammusic.ui.components.RowsSkeleton
 import app.ammusic.ui.components.SectionHeader
+import app.ammusic.ui.components.SwipeToRemove
 import app.ammusic.ui.components.cascade
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.sharedCover
@@ -70,7 +76,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
     val route = viewModel.route
     val actions = LocalActions.current
     val list = rememberLazyListState()
-    val tint = rememberPlayerColors(state.thumbnail, stiffness = 90f).glow
+    val tint = rememberPlayerColors(state.thumbnail?.substringBefore(CoverSeparator), stiffness = 90f).glow
     val origin = "collection:${route.id}"
 
     var settled by remember { mutableStateOf(false) }
@@ -86,7 +92,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
         actions.sheet(
             MenuRequest(
                 title = state.title,
-                subtitle = count(state.tracks.size),
+                subtitle = songCount(state.tracks.size),
                 thumbnail = state.thumbnail,
                 actions = listOf(
                     MenuAction(AmIcons.Edit, tr("Renommer", "Rename")) { actions.prompt(tr("Renommer la playlist", "Rename playlist"), state.title, viewModel::rename) },
@@ -120,6 +126,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
             CollectionHeader(
                 state = state,
                 route = route,
+                list = list,
                 tint = tint,
                 onPlay = { actions.playAll(state.tracks, 0, false) },
                 onShuffle = { actions.playAll(state.tracks, 0, true) },
@@ -151,39 +158,56 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 }
                 itemsIndexed(state.tracks, key = { _, track -> track.id }, contentType = { _, _ -> "track" }) { index, track ->
                     val play = { actions.playAll(state.tracks, index, null) }
-                    if (state.isAlbum) {
-                        AlbumTrackRow(
+                    val placed = Modifier.fillMaxWidth().animateItem().cascade(index, enabled = !settled)
+                    when {
+                        state.isAlbum -> AlbumTrackRow(
                             index = index,
                             track = track,
                             showArtists = track.artists.isNotBlank() && track.artists != state.subtitle,
                             onClick = play,
                             modifier = Modifier.cascade(index, enabled = !settled),
                         )
-                    } else {
-                        ItemRow(
-                            item = track,
-                            origin = origin,
-                            extras = if (state.editable) {
-                                listOf(MenuAction(AmIcons.Remove, tr("Retirer de la playlist", "Remove from playlist"), destructive = true) { viewModel.remove(track) })
-                            } else {
-                                emptyList()
-                            },
-                            modifier = Modifier.fillMaxWidth().cascade(index, enabled = !settled).padding(horizontal = 20.dp, vertical = 6.dp),
-                            onClick = play,
-                        )
+
+                        state.editable -> SwipeToRemove(onRemove = { viewModel.remove(track) }, modifier = placed) {
+                            ItemRow(
+                                item = track,
+                                origin = origin,
+                                extras = listOf(
+                                    MenuAction(AmIcons.Remove, tr("Retirer de la playlist", "Remove from playlist"), destructive = true) { viewModel.remove(track) },
+                                ),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                                onClick = play,
+                            )
+                        }
+
+                        else -> ItemRow(track, origin, placed.padding(horizontal = 20.dp, vertical = 6.dp), onClick = play)
                     }
                 }
-                item(key = "footer", contentType = "text") {
-                    AmText(
-                        text = if (state.tracks.isEmpty() && state.editable) {
-                            tr("Cette playlist est vide. Ajoutez-y des titres avec leur menu « ⋯ ».", "This playlist is empty. Add songs from their “⋯” menu.")
-                        } else {
-                            summary(state.tracks)
-                        },
-                        style = AmTheme.type.footnote,
-                        color = AmTheme.colors.textTertiary,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                    )
+                if (state.tracks.isEmpty() && state.editable) {
+                    item(key = "empty", contentType = "empty") {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            AmText(tr("Cette playlist est vide", "This playlist is empty"), style = AmTheme.type.headline, textAlign = TextAlign.Center)
+                            AmText(
+                                text = tr(
+                                    "Touchez « ⋯ » à côté d'un titre, puis « Ajouter à une playlist ».",
+                                    "Tap “⋯” next to a song, then “Add to a playlist”.",
+                                ),
+                                style = AmTheme.type.subhead,
+                                color = AmTheme.colors.textSecondary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
+                } else {
+                    item(key = "footer", contentType = "text") {
+                        AmText(
+                            text = summary(state.tracks),
+                            style = AmTheme.type.footnote,
+                            color = AmTheme.colors.textTertiary,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                        )
+                    }
                 }
                 if (state.otherVersions.isNotEmpty()) {
                     item(key = "othersHeader", contentType = "header") { SectionHeader(tr("Autres versions", "Other versions"), top = 12.dp) }
@@ -194,17 +218,22 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
     }
 }
 
-private fun count(tracks: Int) = if (tracks > 1) tr("$tracks titres", "$tracks songs") else tr("$tracks titre", "$tracks song")
-
 private fun summary(tracks: List<YtTrack>): String {
-    val seconds = tracks.sumOf { it.durationSeconds ?: return count(tracks.size) }
+    val seconds = tracks.sumOf { it.durationSeconds ?: return songCount(tracks.size) }
     val minutes = (seconds + 30) / 60
     val duration = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
-    return "${count(tracks.size)} · $duration"
+    return "${songCount(tracks.size)} · $duration"
 }
 
 @Composable
-private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tint: Color, onPlay: () -> Unit, onShuffle: () -> Unit) {
+private fun CollectionHeader(
+    state: CollectionState,
+    route: CollectionRoute,
+    list: LazyListState,
+    tint: Color,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+) {
     val colors = AmTheme.colors
     val actions = LocalActions.current
     val lift = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + DetailBarHeight
@@ -227,8 +256,22 @@ private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tin
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(10.dp))
-        Box(Modifier.size(232.dp).sharedCover(route.sharedKey)) {
-            Cover(state.thumbnail, Modifier.fillMaxSize(), corner = 14.dp, requestSize = route.coverSize, elevated = true)
+        val glyph = if (state.isAlbum) null else AmIcons.Playlist
+        Box(
+            Modifier
+                .size(232.dp)
+                .graphicsLayer {
+                    val scrolled = if (list.firstVisibleItemIndex == 0) list.firstVisibleItemScrollOffset.toFloat() else size.height
+                    val away = (scrolled / size.height).coerceIn(0f, 1f)
+                    val shrink = 1f - 0.18f * away
+                    scaleX = shrink
+                    scaleY = shrink
+                    alpha = 1f - away * away
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                }
+                .sharedCover(route.sharedKey),
+        ) {
+            Cover(state.thumbnail, Modifier.fillMaxSize(), corner = 14.dp, requestSize = route.coverSize, elevated = true, glyph = glyph)
             Cover(state.thumbnail, Modifier.fillMaxSize(), corner = 14.dp, requestSize = 720, placeholder = false)
         }
         Spacer(Modifier.height(22.dp))
@@ -249,7 +292,9 @@ private fun CollectionHeader(state: CollectionState, route: CollectionRoute, tin
             )
         }
         AmText(
-            text = listOfNotNull(kind, state.year?.toString()).joinToString(" · ").uppercase(),
+            text = listOfNotNull(kind, state.year?.toString(), songCount(state.tracks.size).takeIf { !state.isAlbum && state.tracks.isNotEmpty() })
+                .joinToString(" · ")
+                .uppercase(),
             style = AmTheme.type.caption.copy(letterSpacing = 0.08.em, fontWeight = FontWeight.SemiBold),
             color = colors.textSecondary,
             modifier = Modifier.padding(top = 6.dp),

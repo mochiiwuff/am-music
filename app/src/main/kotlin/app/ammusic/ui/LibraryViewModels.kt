@@ -50,6 +50,7 @@ class LibraryViewModel @Inject constructor(private val library: LibraryRepositor
     val artists = library.artists.shared()
     val playlists = library.playlists.shared()
     val likedIds = library.likedIds
+    val notices = library.notices
 
     val recent: StateFlow<List<YtItem>> = combine(library.albums, library.playlists, library.artists) { albums, playlists, artists ->
         val lists = listOf(albums, playlists, artists)

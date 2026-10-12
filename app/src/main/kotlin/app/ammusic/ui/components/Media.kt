@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -16,6 +17,10 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +29,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,6 +44,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -51,20 +60,30 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.ammusic.data.library.CoverSeparator
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtAlbum
 import app.ammusic.youtube.model.YtArtist
 import app.ammusic.youtube.model.YtItem
+import app.ammusic.youtube.model.YtPlaylist
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.model.thumbnailAt
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -96,6 +115,7 @@ fun Cover(
     circle: Boolean = false,
     placeholder: Boolean = true,
     sharedKey: String? = null,
+    glyph: ImageVector? = null,
 ) {
     val shape: Shape = if (circle) CircleShape else RoundedCornerShape(corner)
     val fill = if (placeholder) Modifier.background(AmTheme.colors.surface) else Modifier
@@ -104,6 +124,29 @@ fun Cover(
     } else {
         Modifier
     }
+    val frame = modifier.sharedCover(sharedKey).then(shadow).clip(shape).then(fill)
+    val parts = remember(url) { url?.split(CoverSeparator)?.filter { it.isNotBlank() }.orEmpty() }
+    when {
+        parts.size >= 4 -> Column(frame) {
+            repeat(2) { row ->
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    repeat(2) { column ->
+                        CoverImage(parts[row * 2 + column], requestSize / 2, Modifier.weight(1f).fillMaxHeight())
+                    }
+                }
+            }
+        }
+
+        parts.isEmpty() && glyph != null && placeholder -> Box(frame, contentAlignment = Alignment.Center) {
+            Image(glyph, contentDescription = null, modifier = Modifier.fillMaxSize(0.4f), colorFilter = ColorFilter.tint(AmTheme.colors.textTertiary))
+        }
+
+        else -> CoverImage(parts.firstOrNull(), requestSize, frame)
+    }
+}
+
+@Composable
+private fun CoverImage(url: String?, requestSize: Int, modifier: Modifier) {
     val context = LocalPlatformContext.current
     var resizedFailed by remember(url, requestSize) { mutableStateOf(false) }
     val request = remember(url, requestSize, resizedFailed) {
@@ -115,8 +158,57 @@ fun Cover(
         onError = { resizedFailed = true },
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = modifier.sharedCover(sharedKey).then(shadow).clip(shape).then(fill),
+        modifier = modifier,
     )
+}
+
+@Composable
+fun SwipeToRemove(onRemove: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val colors = AmTheme.colors
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    val offset = remember { Animatable(0f) }
+    var width by remember { mutableIntStateOf(1) }
+    Box(
+        modifier
+            .onSizeChanged { width = it.width }
+            .draggable(
+                state = rememberDraggableState { delta -> scope.launch { offset.snapTo((offset.value + delta).coerceIn(-width.toFloat(), 0f)) } },
+                orientation = Orientation.Horizontal,
+                onDragStopped = { velocity ->
+                    if (offset.value < -width * 0.4f || velocity < -1800f) {
+                        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        offset.animateTo(-width.toFloat(), spring(stiffness = 520f), velocity)
+                        onRemove()
+                        delay(700)
+                        offset.snapTo(0f)
+                    } else {
+                        offset.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 420f), velocity)
+                    }
+                },
+            ),
+    ) {
+        Box(
+            Modifier.matchParentSize().drawBehind {
+                val reveal = -offset.value
+                if (reveal > 0f) drawRect(colors.accent, topLeft = Offset(size.width - reveal, 0f), size = Size(reveal, size.height))
+            },
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            AmIcon(
+                icon = AmIcons.Trash,
+                tint = Color.White,
+                size = 22.dp,
+                modifier = Modifier.padding(end = 24.dp).graphicsLayer {
+                    val shown = (-offset.value / 72.dp.toPx()).coerceIn(0f, 1f)
+                    alpha = shown
+                    scaleX = 0.6f + 0.4f * shown
+                    scaleY = scaleX
+                },
+            )
+        }
+        Box(Modifier.graphicsLayer { translationX = offset.value }) { content() }
+    }
 }
 
 fun Modifier.shimmer(shape: Shape): Modifier = composed {
@@ -182,14 +274,22 @@ fun ItemRow(
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(
-            url = item.thumbnail,
-            modifier = Modifier.size(52.dp),
-            corner = 8.dp,
-            requestSize = RowCoverSize,
-            circle = item is YtArtist,
-            sharedKey = if (track == null) sharedKey(origin, item) else null,
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Cover(
+                url = item.thumbnail,
+                modifier = Modifier.size(52.dp),
+                corner = 8.dp,
+                requestSize = RowCoverSize,
+                circle = item is YtArtist,
+                sharedKey = if (track == null) sharedKey(origin, item) else null,
+                glyph = if (item is YtPlaylist) AmIcons.Playlist else null,
+            )
+            if (current) {
+                Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x8C000000)), contentAlignment = Alignment.Center) {
+                    NowPlayingBars(LocalNowPlaying.current.playing, Color.White)
+                }
+            }
+        }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             AmText(item.title, style = AmTheme.type.subhead, color = if (current) colors.accent else colors.text, maxLines = 1)
             AmText(item.caption(), style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
@@ -226,6 +326,7 @@ fun ItemTile(item: YtItem, origin: String, modifier: Modifier = Modifier, onClic
             elevated = true,
             circle = item is YtArtist,
             sharedKey = if (track == null) sharedKey(origin, item) else null,
+            glyph = if (item is YtPlaylist) AmIcons.Playlist else null,
         )
         Spacer(Modifier.height(8.dp))
         AmText(item.title, style = AmTheme.type.subhead, maxLines = 1)

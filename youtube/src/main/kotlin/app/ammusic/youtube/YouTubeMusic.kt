@@ -29,6 +29,8 @@ import com.metrolist.innertube.models.WatchEndpoint
 import com.metrolist.innertube.models.YTItem
 import com.metrolist.innertube.utils.completed
 import com.metrolist.innertube.utils.parseCookieString
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import com.metrolist.innertubex.models.YouTubeLocale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -196,11 +198,15 @@ object YouTubeMusic {
 
     suspend fun deletePlaylist(playlistId: String): Result<Unit> = io { YouTube.deletePlaylist(playlistId).map { } }
 
-    suspend fun addToPlaylist(playlistId: String, videoId: String): Result<Unit> = io { YouTube.addToPlaylist(playlistId, videoId).map { } }
+    suspend fun addToPlaylist(playlistId: String, videoId: String): Result<String?> = io {
+        YouTube.addToPlaylist(playlistId, videoId).mapCatching { response -> playlistEditSetVideoId(response.bodyAsText()) }
+    }
 
     suspend fun removeFromPlaylist(playlistId: String, videoId: String, setVideoId: String): Result<Unit> = io {
-        YouTube.removeFromPlaylist(playlistId, videoId, setVideoId).map { }
+        YouTube.removeFromPlaylist(playlistId, videoId, setVideoId).mapCatching { response -> response.acceptedBody() }.map { }
     }
+
+    private suspend fun HttpResponse.acceptedBody(): String = bodyAsText().also { playlistEditSetVideoId(it) }
 
     private val AutoPlaylists = setOf("LM", "SE")
 
@@ -244,4 +250,11 @@ object YouTubeMusic {
     }
 
     private suspend fun <T> io(block: suspend () -> Result<T>): Result<T> = withContext(Dispatchers.IO) { block() }
+}
+
+private val SetVideoId = Regex("\"setVideoId\"\\s*:\\s*\"([^\"]+)\"")
+
+internal fun playlistEditSetVideoId(body: String): String? {
+    check("STATUS_FAILED" !in body) { "Modification de playlist refusée par YouTube : ${body.take(300)}" }
+    return SetVideoId.find(body)?.groupValues?.get(1)
 }

@@ -101,26 +101,22 @@ fun DetailScaffold(
                         .pressable(scale = 0.88f, label = tr("Retour", "Back"), onClick = actions.back),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (underStatusBar) {
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .graphicsLayer { alpha = 1f - collapse.value }
+                            .drawBehind { drawCircle(colors.glass.copy(alpha = 0.62f)) },
+                    )
+                    AmIcon(AmIcons.ChevronLeft, size = 22.dp, modifier = Modifier.padding(end = 2.dp))
+                }
+                if (trailing != null) {
+                    Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).size(48.dp), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
                                 .size(34.dp)
                                 .graphicsLayer { alpha = 1f - collapse.value }
                                 .drawBehind { drawCircle(colors.glass.copy(alpha = 0.62f)) },
                         )
-                    }
-                    AmIcon(AmIcons.ChevronLeft, size = 22.dp, modifier = Modifier.padding(end = 2.dp))
-                }
-                if (trailing != null) {
-                    Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).size(48.dp), contentAlignment = Alignment.Center) {
-                        if (underStatusBar) {
-                            Box(
-                                Modifier
-                                    .size(34.dp)
-                                    .graphicsLayer { alpha = 1f - collapse.value }
-                                    .drawBehind { drawCircle(colors.glass.copy(alpha = 0.62f)) },
-                            )
-                        }
                         trailing()
                     }
                 }

@@ -7,6 +7,7 @@ import androidx.navigation.toRoute
 import app.ammusic.data.MusicRepository
 import app.ammusic.data.library.LibraryRepository
 import app.ammusic.youtube.model.YtAlbum
+import app.ammusic.youtube.tr
 import app.ammusic.youtube.model.YtArtist
 import app.ammusic.youtube.model.YtArtistPage
 import app.ammusic.youtube.model.YtBrowsePage
@@ -14,6 +15,8 @@ import app.ammusic.youtube.model.YtPlaylist
 import app.ammusic.youtube.model.YtTrack
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +56,7 @@ class CollectionViewModel @Inject constructor(
     val state: StateFlow<CollectionState> = _state.asStateFlow()
     val savedIds = library.savedIds
     private var job: Job? = null
+    private var mirrored = false
 
     init {
         load()
@@ -63,26 +67,34 @@ class CollectionViewModel @Inject constructor(
         _state.update { it.copy(status = LoadStatus.Loading) }
         job = viewModelScope.launch {
             when {
-                local -> watchLocal()
                 route.album -> loadAlbum()
+                local || library.isMine(route.id) -> watchMirror()
                 else -> loadPlaylist()
             }
         }
     }
 
-    private suspend fun watchLocal() {
-        library.localPlaylist(route.id).collect { (playlist, tracks) ->
-            _state.update {
-                it.copy(
-                    title = playlist?.title ?: it.title,
-                    subtitle = playlist?.subtitle ?: it.subtitle,
-                    thumbnail = playlist?.thumbnail ?: it.thumbnail,
-                    tracks = tracks,
-                    editable = true,
-                    status = LoadStatus.Ready,
-                )
+    private suspend fun watchMirror() = coroutineScope {
+        mirrored = true
+        val refresh = MutableStateFlow(if (local) true else null)
+        if (!local) launch { refresh.value = library.refreshPlaylist(route.id) }
+        combine(library.playlistWithTracks(route.id), refresh) { (playlist, tracks), refreshed -> Triple(playlist, tracks, refreshed) }
+            .collect { (playlist, tracks, refreshed) ->
+                _state.update {
+                    it.copy(
+                        title = playlist?.title ?: it.title,
+                        subtitle = if (local) tr("Sur ce téléphone", "On this phone") else tr("Votre playlist", "Your playlist"),
+                        thumbnail = if (playlist != null) playlist.thumbnail else it.thumbnail,
+                        tracks = tracks,
+                        editable = true,
+                        status = when {
+                            tracks.isNotEmpty() || refreshed == true -> LoadStatus.Ready
+                            refreshed == false -> LoadStatus.Error
+                            else -> LoadStatus.Loading
+                        },
+                    )
+                }
             }
-        }
     }
 
     fun toggleSaved() {
@@ -103,7 +115,7 @@ class CollectionViewModel @Inject constructor(
     fun delete() = library.deletePlaylist(route.id)
 
     fun remove(track: YtTrack) {
-        if (!local) _state.update { it.copy(tracks = it.tracks - track) }
+        if (!mirrored) _state.update { it.copy(tracks = it.tracks - track) }
         library.removeFromPlaylist(route.id, track)
     }
 
