@@ -72,6 +72,7 @@ class PlayerController @Inject constructor(
     private var player: MediaController? = null
     private var radio: Job? = null
     private var coverJob: Job? = null
+    private val suggested = HashSet<String>()
     private var skipJob: Job? = null
     private var sleepJob: Job? = null
     private val _sleep = MutableStateFlow(SleepTimer())
@@ -87,6 +88,7 @@ class PlayerController @Inject constructor(
 
     fun play(track: YtTrack) = withPlayer { player ->
         radio?.cancel()
+        suggested.clear()
         player.setMediaItem(track.toMediaItem())
         player.prepare()
         player.play()
@@ -97,6 +99,7 @@ class PlayerController @Inject constructor(
         val items = tracks.distinctBy { it.id }
         if (items.isEmpty()) return@withPlayer
         radio?.cancel()
+        suggested.clear()
         if (shuffle != null) player.shuffleModeEnabled = shuffle
         val start = if (shuffle == true) items.indices.random() else items.indexOfFirst { it.id == tracks.getOrNull(startIndex)?.id }
         player.setMediaItems(items.map { it.toMediaItem() }, start.coerceAtLeast(0), C.TIME_UNSET)
@@ -152,10 +155,20 @@ class PlayerController @Inject constructor(
     fun toggleShuffle() = withPlayer { it.shuffleModeEnabled = !it.shuffleModeEnabled }
 
     fun cycleRepeat() = withPlayer { player ->
-        player.repeatMode = when (player.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+        when (player.repeatMode) {
+            Player.REPEAT_MODE_OFF -> {
+                radio?.cancel()
+                val last = player.mediaItemCount - 1
+                for (index in last downTo player.currentMediaItemIndex + 1) {
+                    if (player.getMediaItemAt(index).mediaId in suggested) player.removeMediaItem(index)
+                }
+                player.repeatMode = Player.REPEAT_MODE_ALL
+            }
+            Player.REPEAT_MODE_ALL -> player.repeatMode = Player.REPEAT_MODE_ONE
+            else -> {
+                player.repeatMode = Player.REPEAT_MODE_OFF
+                extendQueue(player)
+            }
         }
     }
 
@@ -232,14 +245,17 @@ class PlayerController @Inject constructor(
     }
 
     private fun extendQueue(player: MediaController) {
-        if (!UserSettings.current.autoplay) return
+        if (!UserSettings.current.autoplay || player.repeatMode == Player.REPEAT_MODE_ALL) return
         if (radio?.isActive == true || player.mediaItemCount == 0) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3) return
         val seed = player.getMediaItemAt(player.mediaItemCount - 1).mediaId
         radio = scope.launch {
             val known = (0 until player.mediaItemCount).mapTo(HashSet()) { player.getMediaItemAt(it).mediaId }
             val more = repository.radio(seed).getOrNull().orEmpty().filter { known.add(it.id) }
-            if (more.isNotEmpty()) player.addMediaItems(more.map { it.toMediaItem() })
+            if (more.isNotEmpty() && player.repeatMode != Player.REPEAT_MODE_ALL) {
+                suggested += more.map { it.id }
+                player.addMediaItems(more.map { it.toMediaItem() })
+            }
         }
     }
 
@@ -266,7 +282,7 @@ class PlayerController @Inject constructor(
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    if (_sleep.value.endOfTrack && reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                    if (_sleep.value.endOfTrack && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT)) {
                         controller.pause()
                         _sleep.value = SleepTimer()
                     }

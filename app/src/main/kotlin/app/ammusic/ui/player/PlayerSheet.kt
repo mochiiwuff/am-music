@@ -4,6 +4,7 @@ import app.ammusic.youtube.tr
 
 import android.app.Activity
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -36,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,7 +65,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.view.WindowCompat
 import app.ammusic.playback.PlayerState
@@ -320,10 +324,16 @@ private fun PlayerContent(
                 ToggleButton(AmIcons.Lyrics, tr("Paroles", "Lyrics"), false, onLyrics)
                 ToggleButton(AmIcons.Queue, tr("File d'attente", "Queue"), false, onQueue)
                 ToggleButton(
-                    icon = if (state.repeat == RepeatMode.One) AmIcons.RepeatOne else AmIcons.Repeat,
-                    label = tr("Répétition", "Repeat"),
+                    icon = AmIcons.Repeat,
+                    label = when (state.repeat) {
+                        RepeatMode.Off -> tr("Répéter la liste", "Repeat all")
+                        RepeatMode.All -> tr("Répéter ce titre", "Repeat this song")
+                        RepeatMode.One -> tr("Ne plus répéter", "Stop repeating")
+                    },
                     active = state.repeat != RepeatMode.Off,
                     onClick = player::cycleRepeat,
+                    badge = state.repeat == RepeatMode.One,
+                    spins = true,
                 )
             }
         }
@@ -367,11 +377,66 @@ private fun BigButton(icon: ImageVector, label: String, onClick: () -> Unit, ena
 }
 
 @Composable
-private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
-    val glow by animateFloatAsState(if (active) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = 400f), label = "toggle")
-    Box(Modifier.size(56.dp).pressable(scale = 0.86f, haptic = true, label = label, onClick = onClick), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(44.dp).graphicsLayer { alpha = glow; scaleX = 0.7f + 0.3f * glow; scaleY = 0.7f + 0.3f * glow }.clip(CircleShape).background(Color(0x33FFFFFF)))
-        AmIcon(icon, tint = if (active) Color.White else Soft, size = 24.dp)
+private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit, badge: Boolean = false, spins: Boolean = false) {
+    val scope = rememberCoroutineScope()
+    val shape = RoundedCornerShape(13.dp)
+    val fill by animateFloatAsState(if (active) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 420f), label = "fill")
+    val tint by animateColorAsState(if (active) Color(0xE6000000) else Soft, spring(stiffness = 420f), label = "tint")
+    val mark by animateFloatAsState(if (badge) 1f else 0f, spring(dampingRatio = 0.55f, stiffness = 480f), label = "badge")
+    var turns by remember { mutableIntStateOf(0) }
+    val turn by animateFloatAsState(turns * 180f, spring(dampingRatio = 0.62f, stiffness = 170f), label = "turn")
+    val ping = remember { Animatable(0f) }
+    Box(
+        Modifier.size(56.dp).pressable(scale = 0.86f, haptic = true, label = label) {
+            onClick()
+            if (spins) turns++
+            scope.launch {
+                ping.snapTo(1f)
+                ping.animateTo(0f, spring(dampingRatio = 1f, stiffness = 110f))
+            }
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(width = 48.dp, height = 40.dp)
+                .graphicsLayer {
+                    val wave = ping.value
+                    alpha = 0.3f * wave
+                    scaleX = 1.4f - 0.4f * wave
+                    scaleY = scaleX
+                }
+                .clip(shape)
+                .background(Color.White),
+        )
+        Box(
+            Modifier
+                .size(width = 48.dp, height = 40.dp)
+                .graphicsLayer {
+                    alpha = fill.coerceIn(0f, 1f)
+                    scaleX = 0.7f + 0.3f * fill
+                    scaleY = scaleX
+                }
+                .clip(shape)
+                .background(Color(0xF2FFFFFF)),
+        )
+        AmIcon(icon, tint = tint, size = 24.dp, modifier = Modifier.graphicsLayer { rotationZ = turn })
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 3.dp)
+                .size(17.dp)
+                .graphicsLayer {
+                    alpha = mark.coerceIn(0f, 1f)
+                    scaleX = mark
+                    scaleY = mark
+                }
+                .clip(CircleShape)
+                .background(AmTheme.colors.accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            AmText("1", style = AmTheme.type.caption.copy(fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold), color = Color.White)
+        }
     }
 }
 
