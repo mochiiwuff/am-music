@@ -155,7 +155,7 @@ fun PillButton(label: String, icon: ImageVector, filled: Boolean, enabled: Boole
 
 @Composable
 fun SaveButton(saved: Boolean, addLabel: String, removeLabel: String, onToggle: () -> Unit) {
-    val turn by animateFloatAsState(if (saved) 1f else 0f, spring(dampingRatio = 0.5f, stiffness = 380f), label = "save")
+    val turn by animateFloatAsState(if (saved) 1f else 0f, spring(dampingRatio = 1f, stiffness = 440f), label = "save")
     Box(
         Modifier.size(48.dp).pressable(scale = 0.85f, haptic = true, label = if (saved) removeLabel else addLabel, onClick = onToggle),
         contentAlignment = Alignment.Center,

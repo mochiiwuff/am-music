@@ -101,13 +101,15 @@ fun Modifier.pressable(
     haptic: Boolean = false,
     label: String? = null,
     onLongClick: (() -> Unit)? = null,
+    source: MutableInteractionSource? = null,
     onClick: () -> Unit,
 ): Modifier = composed {
-    val interaction = remember { MutableInteractionSource() }
+    val own = remember { MutableInteractionSource() }
+    val interaction = source ?: own
     val pressed by interaction.collectIsPressedAsState()
     val current by animateFloatAsState(
         targetValue = if (pressed) scale else 1f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = 520f),
+        animationSpec = if (pressed) spring(dampingRatio = 1f, stiffness = 1800f) else spring(dampingRatio = 1f, stiffness = 440f),
         label = "press",
     )
     val haptics = LocalHapticFeedback.current

@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -333,7 +335,6 @@ private fun PlayerContent(
                     active = state.repeat != RepeatMode.Off,
                     onClick = player::cycleRepeat,
                     badge = state.repeat == RepeatMode.One,
-                    spins = true,
                 )
             }
         }
@@ -377,59 +378,44 @@ private fun BigButton(icon: ImageVector, label: String, onClick: () -> Unit, ena
 }
 
 @Composable
-private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit, badge: Boolean = false, spins: Boolean = false) {
-    val scope = rememberCoroutineScope()
-    val shape = RoundedCornerShape(13.dp)
-    val fill by animateFloatAsState(if (active) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 420f), label = "fill")
-    val tint by animateColorAsState(if (active) Color(0xE6000000) else Soft, spring(stiffness = 420f), label = "tint")
-    val mark by animateFloatAsState(if (badge) 1f else 0f, spring(dampingRatio = 0.55f, stiffness = 480f), label = "badge")
-    var turns by remember { mutableIntStateOf(0) }
-    val turn by animateFloatAsState(turns * 180f, spring(dampingRatio = 0.62f, stiffness = 170f), label = "turn")
-    val ping = remember { Animatable(0f) }
+private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit, badge: Boolean = false) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val settle = spring<Float>(dampingRatio = 1f, stiffness = 440f)
+    val on by animateFloatAsState(if (active) 1f else 0f, settle, label = "on")
+    val touch by animateFloatAsState(if (pressed) 1f else 0f, if (pressed) spring(dampingRatio = 1f, stiffness = 2400f) else settle, label = "touch")
+    val mark by animateFloatAsState(if (badge) 1f else 0f, settle, label = "badge")
+    val tint by animateColorAsState(
+        targetValue = if (active) Color(0xE6000000) else if (pressed) Color.White else Soft,
+        animationSpec = spring(dampingRatio = 1f, stiffness = 440f),
+        label = "tint",
+    )
     Box(
-        Modifier.size(56.dp).pressable(scale = 0.86f, haptic = true, label = label) {
-            onClick()
-            if (spins) turns++
-            scope.launch {
-                ping.snapTo(1f)
-                ping.animateTo(0f, spring(dampingRatio = 1f, stiffness = 110f))
-            }
-        },
+        Modifier.size(56.dp).pressable(scale = 0.94f, haptic = true, label = label, source = interaction, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             Modifier
                 .size(width = 48.dp, height = 40.dp)
                 .graphicsLayer {
-                    val wave = ping.value
-                    alpha = 0.3f * wave
-                    scaleX = 1.4f - 0.4f * wave
-                    scaleY = scaleX
+                    alpha = on * 0.95f * (1f - 0.22f * touch) + (1f - on) * 0.2f * touch
+                    val grow = 0.9f + 0.1f * maxOf(on, touch)
+                    scaleX = grow
+                    scaleY = grow
                 }
-                .clip(shape)
+                .clip(RoundedCornerShape(13.dp))
                 .background(Color.White),
         )
-        Box(
-            Modifier
-                .size(width = 48.dp, height = 40.dp)
-                .graphicsLayer {
-                    alpha = fill.coerceIn(0f, 1f)
-                    scaleX = 0.7f + 0.3f * fill
-                    scaleY = scaleX
-                }
-                .clip(shape)
-                .background(Color(0xF2FFFFFF)),
-        )
-        AmIcon(icon, tint = tint, size = 24.dp, modifier = Modifier.graphicsLayer { rotationZ = turn })
+        AmIcon(icon, tint = tint, size = 24.dp)
         Box(
             Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 3.dp)
                 .size(17.dp)
                 .graphicsLayer {
-                    alpha = mark.coerceIn(0f, 1f)
-                    scaleX = mark
-                    scaleY = mark
+                    alpha = mark
+                    scaleX = 0.6f + 0.4f * mark
+                    scaleY = scaleX
                 }
                 .clip(CircleShape)
                 .background(AmTheme.colors.accent),

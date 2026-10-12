@@ -140,7 +140,7 @@ private val PlayShape = floatArrayOf(
 
 @Composable
 fun PlayPauseIcon(playing: Boolean, color: Color, size: Dp, modifier: Modifier = Modifier) {
-    val morph by animateFloatAsState(if (playing) 0f else 1f, spring(dampingRatio = 0.7f, stiffness = 380f), label = "playPause")
+    val morph by animateFloatAsState(if (playing) 0f else 1f, spring(dampingRatio = 1f, stiffness = 520f), label = "playPause")
     val path = remember { Path() }
     Canvas(modifier.size(size)) {
         val side = this.size.minDimension
@@ -165,7 +165,7 @@ fun HeartButton(liked: Boolean, onToggle: () -> Unit, tint: Color, likedTint: Co
     LaunchedEffect(liked) {
         if (liked) {
             scale.snapTo(0.6f)
-            scale.animateTo(1f, spring(dampingRatio = 0.32f, stiffness = 420f))
+            scale.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 420f))
         }
     }
     Box(
@@ -193,7 +193,7 @@ fun ThinSlider(
     var local by remember { mutableFloatStateOf(value) }
     val change by rememberUpdatedState(onChange)
     val release by rememberUpdatedState(onRelease)
-    val thickness by animateDpAsState(if (dragging) 12.dp else 5.dp, spring(dampingRatio = 0.6f, stiffness = 500f), label = "thickness")
+    val thickness by animateDpAsState(if (dragging) 12.dp else 5.dp, spring(dampingRatio = 0.86f, stiffness = 500f), label = "thickness")
     val fill by animateColorAsState(if (dragging) Color.White else Color(0xD9FFFFFF), label = "fill")
     val shown = if (dragging) local else value.coerceIn(0f, 1f)
 

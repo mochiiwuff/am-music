@@ -45,7 +45,7 @@ fun NoticeHost(notices: Flow<LibraryNotice>, modifier: Modifier = Modifier) {
         notices.collectLatest { notice ->
             current = notice
             haptics.performHapticFeedback(if (notice.failed) HapticFeedbackType.LongPress else HapticFeedbackType.ContextClick)
-            progress.animateTo(1f, spring(dampingRatio = 0.68f, stiffness = 380f))
+            progress.animateTo(1f, spring(dampingRatio = 1f, stiffness = 440f))
             delay(if (notice.failed) 3_600 else 2_200)
             progress.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
             current = null

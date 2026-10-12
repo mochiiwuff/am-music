@@ -66,7 +66,7 @@ fun TextPrompt(request: PromptRequest?, onDismiss: () -> Unit) {
         }
     }
     LaunchedEffect(request) {
-        if (request != null) pop.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 260f))
+        if (request != null) pop.animateTo(1f, spring(dampingRatio = 1f, stiffness = 300f))
     }
 
     val current = shown ?: return

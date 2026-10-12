@@ -312,7 +312,7 @@ private fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> U
 @Composable
 private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     val colors = AmTheme.colors
-    val knob by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.72f, stiffness = 520f), label = "switch")
+    val knob by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 1f, stiffness = 520f), label = "switch")
     Row(
         Modifier
             .fillMaxWidth()
@@ -360,7 +360,7 @@ private fun AccentPicker(selected: Int, onSelect: (Int) -> Unit) {
             AccentChoices.forEachIndexed { index, color ->
                 val ring by animateFloatAsState(
                     targetValue = if (index == selected) 1f else 0f,
-                    animationSpec = spring(dampingRatio = 0.6f, stiffness = 380f),
+                    animationSpec = spring(dampingRatio = 1f, stiffness = 440f),
                     label = "accentRing",
                 )
                 Box(

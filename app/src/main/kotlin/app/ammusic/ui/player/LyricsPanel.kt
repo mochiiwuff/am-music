@@ -296,7 +296,7 @@ private fun InterludeDots(active: Boolean, progress: () -> Float) {
     } else {
         remember { mutableFloatStateOf(0f) }
     }
-    val awake by animateFloatAsState(if (active) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = 160f), label = "awake")
+    val awake by animateFloatAsState(if (active) 1f else 0f, spring(dampingRatio = 1f, stiffness = 200f), label = "awake")
     Canvas(Modifier.height(37.dp).fillMaxWidth()) {
         val radius = 5.5.dp.toPx()
         val gap = 8.dp.toPx()
