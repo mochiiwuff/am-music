@@ -12,9 +12,10 @@ import app.ammusic.youtube.model.YtTrack
 class AppActions(
     val open: (item: YtItem, origin: String, coverSize: Int) -> Unit,
     val playAll: (tracks: List<YtTrack>, index: Int, shuffle: Boolean?) -> Unit,
+    val toggle: () -> Unit,
     val menu: (YtTrack, List<MenuAction>) -> Unit,
     val sheet: (MenuRequest) -> Unit,
-    val prompt: (title: String, initial: String, onConfirm: (String) -> Unit) -> Unit,
+    val prompt: (title: String, initial: String, thumbnail: String?, onConfirm: (String) -> Unit) -> Unit,
     val openLibrary: (kind: String) -> Unit,
     val openLogin: () -> Unit,
     val openMood: (YtMood) -> Unit,

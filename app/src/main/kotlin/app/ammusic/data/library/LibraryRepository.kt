@@ -4,6 +4,7 @@ import app.ammusic.youtube.tr
 
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import androidx.room.Room
 import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.model.YtAlbum
@@ -38,6 +39,7 @@ private const val RecentMs = 10 * 60 * 1000L
 private const val RefreshEveryMs = 2 * 60 * 1000L
 private const val MaxPlaylistPages = 20
 private const val Tag = "AmLibrary"
+private const val OwnersCheckedKey = "playlistOwnersChecked"
 
 const val CoverSeparator = '\n'
 
@@ -56,6 +58,7 @@ fun playlistCover(thumbnails: List<String>): String? {
 
 @Singleton
 class LibraryRepository @Inject constructor(@ApplicationContext context: Context) {
+    private val prefs = context.getSharedPreferences("library", Context.MODE_PRIVATE)
     private val dao = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").addMigrations(Migration1To2).build().dao()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastSync = 0L
@@ -269,10 +272,10 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
             }
             launch {
                 YouTubeMusic.libraryPlaylists().logged("playlists") { it.size }.onSuccess { playlists ->
-                    val mine = dao.minePlaylistIds().toSet()
+                    val mine = ownedAmong(playlists)
                     dao.replaceRemotePlaylists(
                         rows = playlists.mapIndexed { index, playlist ->
-                            playlist.toRow(start - index, if (playlist.editable || playlist.id in mine) PlaylistKind.Mine else PlaylistKind.Saved)
+                            playlist.toRow(start - index, if (playlist.id in mine) PlaylistKind.Mine else PlaylistKind.Saved)
                         },
                         keepAfter = start - RecentMs,
                     )
@@ -280,6 +283,25 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
                 }
             }
         }
+    }
+
+    private suspend fun ownedAmong(playlists: List<YtPlaylist>): Set<String> {
+        val mine = dao.minePlaylistIds().toMutableSet()
+        val known = if (prefs.getBoolean(OwnersCheckedKey, false)) dao.playlistIds().toSet() else emptySet()
+        var complete = true
+        for (playlist in playlists) {
+            if (playlist.id in mine) continue
+            if (playlist.editable) {
+                mine += playlist.id
+                continue
+            }
+            if (playlist.id in known) continue
+            val page = YouTubeMusic.playlist(playlist.id).getOrNull()
+            if (page == null) complete = false else if (page.playlist.editable) mine += playlist.id
+        }
+        if (complete) prefs.edit { putBoolean(OwnersCheckedKey, true) }
+        Log.d(Tag, "playlists à soi : ${mine.size} sur ${playlists.size}")
+        return mine
     }
 
     suspend fun clearRemote() = withContext(Dispatchers.IO) {

@@ -220,3 +220,8 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, top: Dp = 32.dp,
         }
     }
 }
+
+fun Modifier.hairlineBelow(color: Color, inset: Dp): Modifier = drawBehind {
+    val y = size.height - 0.5.dp.toPx()
+    drawLine(color, Offset(inset.toPx(), y), Offset(size.width, y), 1.dp.toPx())
+}

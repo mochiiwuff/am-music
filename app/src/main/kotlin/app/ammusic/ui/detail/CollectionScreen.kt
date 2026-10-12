@@ -2,6 +2,20 @@ package app.ammusic.ui.detail
 
 import app.ammusic.youtube.tr
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,14 +33,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -39,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.ammusic.data.library.CoverSeparator
@@ -63,8 +81,11 @@ import app.ammusic.ui.components.RowsSkeleton
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.SwipeToRemove
 import app.ammusic.ui.components.cascade
+import app.ammusic.ui.components.hairlineBelow
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.sharedCover
+import app.ammusic.ui.player.PlayPauseIcon
+import app.ammusic.ui.player.PlayerColors
 import app.ammusic.ui.player.rememberPlayerColors
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtTrack
@@ -76,10 +97,13 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
     val route = viewModel.route
     val actions = LocalActions.current
     val list = rememberLazyListState()
-    val tint = rememberPlayerColors(state.thumbnail?.substringBefore(CoverSeparator), stiffness = 90f).glow
+    val palette = rememberPlayerColors(state.thumbnail?.substringBefore(CoverSeparator), stiffness = 90f)
     val origin = "collection:${route.id}"
+    val now = LocalNowPlaying.current
+    val active = remember(now.id, state.tracks) { now.id != null && state.tracks.any { it.id == now.id } }
+    val divider = AmTheme.colors.hairline
 
-    var settled by remember { mutableStateOf(false) }
+    var settled by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.status) {
         if (state.status == LoadStatus.Ready) {
             delay(600)
@@ -95,7 +119,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 subtitle = songCount(state.tracks.size),
                 thumbnail = state.thumbnail,
                 actions = listOf(
-                    MenuAction(AmIcons.Edit, tr("Renommer", "Rename")) { actions.prompt(tr("Renommer la playlist", "Rename playlist"), state.title, viewModel::rename) },
+                    MenuAction(AmIcons.Edit, tr("Renommer", "Rename")) { actions.prompt(tr("Renommer la playlist", "Rename playlist"), state.title, state.thumbnail, viewModel::rename) },
                     MenuAction(AmIcons.Trash, tr("Supprimer la playlist", "Delete playlist"), destructive = true) {
                         viewModel.delete()
                         actions.back()
@@ -108,7 +132,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
     DetailScaffold(
         title = state.title,
         state = list,
-        revealAfter = 280.dp,
+        revealAfter = 296.dp,
         underStatusBar = false,
         trailing = {
             when {
@@ -127,8 +151,11 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 state = state,
                 route = route,
                 list = list,
-                tint = tint,
-                onPlay = { actions.playAll(state.tracks, 0, false) },
+                palette = palette,
+                active = active,
+                playing = now.playing,
+                animate = !settled,
+                onPlay = { if (active) actions.toggle() else actions.playAll(state.tracks, 0, false) },
                 onShuffle = { actions.playAll(state.tracks, 0, true) },
             )
         }
@@ -158,7 +185,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 }
                 itemsIndexed(state.tracks, key = { _, track -> track.id }, contentType = { _, _ -> "track" }) { index, track ->
                     val play = { actions.playAll(state.tracks, index, null) }
-                    val placed = Modifier.fillMaxWidth().animateItem().cascade(index, enabled = !settled)
+                    val placed = Modifier.fillMaxWidth().animateItem().cascade(index, enabled = !settled).hairlineBelow(divider, 84.dp)
                     when {
                         state.isAlbum -> AlbumTrackRow(
                             index = index,
@@ -230,26 +257,51 @@ private fun CollectionHeader(
     state: CollectionState,
     route: CollectionRoute,
     list: LazyListState,
-    tint: Color,
+    palette: PlayerColors,
+    active: Boolean,
+    playing: Boolean,
+    animate: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
 ) {
     val colors = AmTheme.colors
     val actions = LocalActions.current
     val lift = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + DetailBarHeight
-    val strength = if (colors.isDark) 0.62f else 0.34f
+    val strength = if (colors.isDark) 0.58f else 0.3f
     val kind = if (state.isAlbum) "Album" else "Playlist"
     val artistId = state.artistId
+    val drift = rememberInfiniteTransition(label = "aura")
+    val a by drift.animateFloat(0f, 1f, infiniteRepeatable(tween(13_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
+    val b by drift.animateFloat(0f, 1f, infiniteRepeatable(tween(19_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
+    val away = { height: Float ->
+        val scrolled = if (list.firstVisibleItemIndex == 0) list.firstVisibleItemScrollOffset.toFloat() else height
+        (scrolled / height).coerceIn(0f, 1f)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
                 val top = -lift.toPx()
+                val area = Size(size.width, size.height - top)
+                val origin = Offset(0f, top)
+                val glow = palette.glow
+                val shade = palette.shade
                 drawRect(
-                    brush = Brush.verticalGradient(listOf(tint.copy(alpha = strength), tint.copy(alpha = 0f)), startY = top, endY = size.height * 0.94f),
-                    topLeft = Offset(0f, top),
-                    size = Size(size.width, size.height - top),
+                    brush = Brush.verticalGradient(listOf(glow.copy(alpha = strength * 0.55f), glow.copy(alpha = 0f)), startY = top, endY = size.height * 0.9f),
+                    topLeft = origin,
+                    size = area,
+                )
+                val radius = size.width * 0.92f
+                val first = Offset(lerp(size.width * 0.04f, size.width * 0.62f, a), top + lerp(area.height * 0.02f, area.height * 0.3f, b))
+                drawRect(Brush.radialGradient(listOf(glow.copy(alpha = strength), glow.copy(alpha = 0f)), first, radius), origin, area)
+                val second = Offset(lerp(size.width * 1.02f, size.width * 0.42f, b), top + lerp(area.height * 0.46f, area.height * 0.16f, a))
+                drawRect(Brush.radialGradient(listOf(shade.copy(alpha = strength * 0.9f), shade.copy(alpha = 0f)), second, radius), origin, area)
+                val fade = size.height * 0.5f
+                drawRect(
+                    brush = Brush.verticalGradient(listOf(colors.background.copy(alpha = 0f), colors.background), startY = fade, endY = size.height),
+                    topLeft = Offset(0f, fade),
+                    size = Size(size.width, size.height - fade),
                 )
             }
             .padding(horizontal = 20.dp),
@@ -259,14 +311,19 @@ private fun CollectionHeader(
         val glyph = if (state.isAlbum) null else AmIcons.Playlist
         Box(
             Modifier
-                .size(232.dp)
+                .size(248.dp)
+                .drawBehind {
+                    val center = Offset(size.width / 2f, size.height * 0.6f)
+                    val radius = size.width * 0.8f
+                    val halo = palette.glow.copy(alpha = (if (colors.isDark) 0.5f else 0.42f) * (1f - away(size.height)))
+                    drawCircle(Brush.radialGradient(listOf(halo, halo.copy(alpha = 0f)), center, radius), radius, center)
+                }
                 .graphicsLayer {
-                    val scrolled = if (list.firstVisibleItemIndex == 0) list.firstVisibleItemScrollOffset.toFloat() else size.height
-                    val away = (scrolled / size.height).coerceIn(0f, 1f)
-                    val shrink = 1f - 0.18f * away
+                    val gone = away(size.height)
+                    val shrink = 1f - 0.18f * gone
                     scaleX = shrink
                     scaleY = shrink
-                    alpha = 1f - away * away
+                    alpha = 1f - gone * gone
                     transformOrigin = TransformOrigin(0.5f, 1f)
                 }
                 .sharedCover(route.sharedKey),
@@ -275,7 +332,7 @@ private fun CollectionHeader(
             Cover(state.thumbnail, Modifier.fillMaxSize(), corner = 14.dp, requestSize = 720, placeholder = false)
         }
         Spacer(Modifier.height(22.dp))
-        AmText(state.title, style = AmTheme.type.section, textAlign = TextAlign.Center, maxLines = 3)
+        AmText(state.title, style = AmTheme.type.section, textAlign = TextAlign.Center, maxLines = 3, modifier = Modifier.cascade(2, animate))
         if (state.subtitle.isNotBlank()) {
             val open = if (artistId != null) {
                 Modifier.pressable(scale = 0.97f, label = tr("Voir l'artiste", "Go to artist")) { actions.openArtist(artistId, state.subtitle) }
@@ -288,7 +345,7 @@ private fun CollectionHeader(
                 color = colors.accent,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
-                modifier = open.padding(top = 3.dp, bottom = 2.dp),
+                modifier = Modifier.cascade(4, animate).then(open).padding(top = 3.dp, bottom = 2.dp),
             )
         }
         AmText(
@@ -297,15 +354,42 @@ private fun CollectionHeader(
                 .uppercase(),
             style = AmTheme.type.caption.copy(letterSpacing = 0.08.em, fontWeight = FontWeight.SemiBold),
             color = colors.textSecondary,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.cascade(6, animate).padding(top = 6.dp),
         )
         Spacer(Modifier.height(22.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.cascade(8, animate), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val ready = state.tracks.isNotEmpty()
-            PillButton(tr("Lecture", "Play"), AmIcons.Play, filled = true, enabled = ready, onClick = onPlay, modifier = Modifier.weight(1f))
+            PlayButton(pause = active && playing, enabled = ready, onClick = onPlay, modifier = Modifier.weight(1f))
             PillButton(tr("Aléatoire", "Shuffle"), AmIcons.Shuffle, filled = false, enabled = ready, onClick = onShuffle, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun PlayButton(pause: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val label = if (pause) "Pause" else tr("Lecture", "Play")
+    Row(
+        modifier
+            .height(50.dp)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
+            .pressable(haptic = true, label = label) { if (enabled) onClick() }
+            .clip(RoundedCornerShape(14.dp))
+            .background(AmTheme.colors.accent),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlayPauseIcon(playing = pause, color = Color.White, size = 20.dp)
+        AnimatedContent(
+            targetState = label,
+            transitionSpec = {
+                val enter = fadeIn(spring(stiffness = 380f)) + slideInVertically(spring(dampingRatio = 0.8f, stiffness = 380f)) { it / 2 }
+                enter togetherWith fadeOut(spring(stiffness = 520f)) + slideOutVertically(spring(stiffness = 520f)) { -it / 2 }
+            },
+            label = "play",
+        ) { text ->
+            AmText(text, style = AmTheme.type.headline, color = Color.White, modifier = Modifier.padding(start = 8.dp))
+        }
     }
 }
 

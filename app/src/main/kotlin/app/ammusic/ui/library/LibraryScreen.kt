@@ -20,6 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +30,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -36,19 +40,26 @@ import app.ammusic.ui.LibraryViewModel
 import app.ammusic.ui.components.AmIcon
 import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
+import app.ammusic.ui.components.Cover
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.ItemRow
 import app.ammusic.ui.components.ItemTile
 import app.ammusic.ui.components.LargeTitleScreen
+import app.ammusic.ui.components.ListCoverSize
 import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.TileCoverSize
+import app.ammusic.ui.components.cascade
+import app.ammusic.ui.components.hairlineBelow
 import app.ammusic.ui.components.pressable
+import app.ammusic.ui.components.sharedKey
 import app.ammusic.ui.detail.PillButton
 import app.ammusic.ui.home.ProfileButton
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtItem
+import app.ammusic.youtube.model.YtPlaylist
 import app.ammusic.youtube.model.YtTrack
+import kotlinx.coroutines.delay
 
 private class Shelf(val kind: String, val label: String, val icon: ImageVector)
 
@@ -168,7 +179,16 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val newPlaylist = { actions.prompt(tr("Nouvelle playlist", "New playlist"), "") { title -> viewModel.createPlaylist(title) } }
+    val newPlaylist = {
+        actions.prompt(tr("Nouvelle playlist", "New playlist"), "", null) { title ->
+            viewModel.createPlaylist(title) { id -> actions.open(YtPlaylist(id, title, "", null, editable = true), origin, ListCoverSize) }
+        }
+    }
+    var settled by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(600)
+        settled = true
+    }
 
     LargeTitleScreen(
         title = shelf.label,
@@ -193,8 +213,10 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
                 rows(artists, origin)
             }
             else -> {
-                item(key = "new", contentType = "new") { NewPlaylistRow(newPlaylist) }
-                rows(playlists, origin)
+                item(key = "new", contentType = "new") { NewPlaylistRow(newPlaylist, Modifier.cascade(0, enabled = !settled)) }
+                itemsIndexed(playlists, key = { _, playlist -> playlist.key }, contentType = { _, _ -> "playlist" }) { index, playlist ->
+                    PlaylistRow(playlist, origin, Modifier.animateItem().cascade(index + 1, enabled = !settled))
+                }
                 if (playlists.isEmpty()) {
                     item(key = "empty") {
                         Hint(tr("Rangez vos titres préférés dans des playlists : elles apparaîtront ici.", "Collect your favourite songs in playlists: they will show up here."))
@@ -235,18 +257,49 @@ private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyHin
 }
 
 @Composable
-private fun NewPlaylistRow(onClick: () -> Unit) {
+private fun NewPlaylistRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AmTheme.colors
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .pressable(scale = 0.98f, haptic = true, label = tr("Nouvelle playlist", "New playlist"), onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 6.dp),
+            .hairlineBelow(colors.hairline, 106.dp)
+            .padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
-            AmIcon(AmIcons.Plus, tint = colors.accent, size = 24.dp)
+        Box(Modifier.size(72.dp).clip(RoundedCornerShape(9.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+            AmIcon(AmIcons.Plus, tint = colors.accent, size = 28.dp)
         }
-        AmText(tr("Nouvelle playlist…", "New playlist…"), style = AmTheme.type.subhead, color = colors.accent, modifier = Modifier.padding(start = 12.dp))
+        AmText(tr("Nouvelle playlist…", "New playlist…"), color = colors.accent, modifier = Modifier.padding(start = 14.dp))
+    }
+}
+
+@Composable
+private fun PlaylistRow(playlist: YtPlaylist, origin: String, modifier: Modifier = Modifier) {
+    val colors = AmTheme.colors
+    val actions = LocalActions.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .pressable(scale = 0.98f) { actions.open(playlist, origin, ListCoverSize) }
+            .hairlineBelow(colors.hairline, 106.dp)
+            .padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Cover(
+            url = playlist.thumbnail,
+            modifier = Modifier.size(72.dp),
+            corner = 9.dp,
+            requestSize = ListCoverSize,
+            sharedKey = sharedKey(origin, playlist),
+            glyph = AmIcons.Playlist,
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            AmText(playlist.title, style = AmTheme.type.body.copy(fontWeight = FontWeight.Medium), maxLines = 1)
+            if (playlist.subtitle.isNotBlank()) {
+                AmText(playlist.subtitle, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
     }
 }

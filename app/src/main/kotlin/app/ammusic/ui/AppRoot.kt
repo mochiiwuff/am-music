@@ -156,8 +156,8 @@ fun AppRoot(
     val openArtist = { id: String, name: String -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) }
 
     val choosePlaylist = { track: YtTrack ->
-        val create = MenuAction(AmIcons.Plus, tr("Nouvelle playlist", "New playlist")) {
-            promptRequest = PromptRequest(tr("Nouvelle playlist", "New playlist"), "") { title -> libraryViewModel.addToNewPlaylist(title, track) }
+        val create = MenuAction(AmIcons.Plus, tr("Nouvelle playlist…", "New playlist…"), artwork = MenuArtwork(null, accent = true)) {
+            promptRequest = PromptRequest(tr("Nouvelle playlist", "New playlist"), "", null) { title -> libraryViewModel.addToNewPlaylist(title, track) }
         }
         val existing = playlists.filter { it.editable }.map { playlist ->
             MenuAction(AmIcons.Playlist, playlist.title, detail = playlist.subtitle, artwork = MenuArtwork(playlist.thumbnail)) {
@@ -205,9 +205,10 @@ fun AppRoot(
                 }
             },
             playAll = playerViewModel::playAll,
+            toggle = { playerViewModel.toggle() },
             menu = { track, extras -> sheetRequest = MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras) },
             sheet = { sheetRequest = it },
-            prompt = { title, initial, onConfirm -> promptRequest = PromptRequest(title, initial, onConfirm) },
+            prompt = { title, initial, thumbnail, onConfirm -> promptRequest = PromptRequest(title, initial, thumbnail, onConfirm) },
             openLibrary = { kind -> nav.navigate(LibraryListRoute(kind)) },
             openLogin = { nav.navigate(LoginRoute) { launchSingleTop = true } },
             openMood = { nav.navigate(BrowseRoute(it.browseId, it.params, it.title, artist = false)) },

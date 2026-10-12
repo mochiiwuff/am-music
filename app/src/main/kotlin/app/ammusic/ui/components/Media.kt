@@ -103,6 +103,7 @@ fun Modifier.sharedCover(key: String?): Modifier {
 }
 
 const val RowCoverSize = 160
+const val ListCoverSize = 240
 const val TileCoverSize = 400
 
 @Composable
@@ -137,7 +138,7 @@ fun Cover(
             }
         }
 
-        parts.isEmpty() && glyph != null && placeholder -> Box(frame, contentAlignment = Alignment.Center) {
+        parts.isEmpty() && glyph != null -> Box(frame, contentAlignment = Alignment.Center) {
             Image(glyph, contentDescription = null, modifier = Modifier.fillMaxSize(0.4f), colorFilter = ColorFilter.tint(AmTheme.colors.textTertiary))
         }
 

@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import app.ammusic.ui.theme.AmTheme
 import kotlinx.coroutines.launch
 
-class MenuArtwork(val url: String?)
+class MenuArtwork(val url: String?, val accent: Boolean = false)
 
 class MenuAction(
     val icon: ImageVector,
@@ -139,13 +139,24 @@ fun MenuSheet(request: MenuRequest?, onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val tint = if (action.destructive) colors.accent else colors.text
-                        if (action.artwork != null) {
-                            Cover(action.artwork.url, Modifier.size(46.dp), corner = 7.dp, requestSize = RowCoverSize, glyph = action.icon)
+                        if (action.artwork?.accent == true) {
+                            Box(Modifier.size(46.dp).clip(RoundedCornerShape(7.dp)).background(colors.surfaceHigh), contentAlignment = Alignment.Center) {
+                                AmIcon(action.icon, tint = colors.accent, size = 22.dp)
+                            }
+                        } else if (action.artwork != null) {
+                            Cover(
+                                url = action.artwork.url,
+                                modifier = Modifier.size(46.dp).clip(RoundedCornerShape(7.dp)).background(colors.surfaceHigh),
+                                corner = 7.dp,
+                                requestSize = RowCoverSize,
+                                placeholder = false,
+                                glyph = action.icon,
+                            )
                         } else {
                             AmIcon(action.icon, tint = tint, size = 22.dp)
                         }
                         Column(Modifier.padding(start = if (action.artwork != null) 14.dp else 18.dp)) {
-                            AmText(action.label, color = tint, maxLines = 1)
+                            AmText(action.label, color = if (action.artwork?.accent == true) colors.accent else tint, maxLines = 1)
                             if (action.detail != null) AmText(action.detail, style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
                         }
                     }

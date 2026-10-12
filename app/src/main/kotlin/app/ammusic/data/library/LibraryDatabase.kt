@@ -156,6 +156,9 @@ abstract class LibraryDao {
     @Query("SELECT id FROM playlists WHERE kind = 1")
     abstract suspend fun minePlaylistIds(): List<String>
 
+    @Query("SELECT id FROM playlists")
+    abstract suspend fun playlistIds(): List<String>
+
     @Upsert
     abstract suspend fun upsertPlaylists(rows: List<PlaylistRow>)
 
