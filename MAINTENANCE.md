@@ -1,39 +1,44 @@
-# Quand YouTube casse la lecture
+# When YouTube breaks playback
 
-Tout le code concerné est dans le module `youtube`. La méthode est décrite dans `docs/youtube.md`.
+All the code involved is in the `youtube` module. How it works is described in `docs/youtube.md`.
 
-## 1. Regarder ce qui échoue
-Brancher le téléphone, lancer un titre, puis :
+## 1. See what fails
+
+Plug the phone in, play a song, then:
 
     adb logcat -d -s AmPlayback:V
 
-- `Flux … via innertubex/CLIENT` : la méthode principale marche.
-- `Flux … via newpipe/…` : la méthode principale a échoué, le secours a pris le relais.
-- `Erreur de lecture … (essai n)` : l'URL obtenue est refusée (souvent une erreur 403).
+- `Flux … via innertubex/CLIENT`: the main method works.
+- `Flux … via newpipe/…`: the main method failed and the fallback took over.
+- `Erreur de lecture … (essai n)`: the stream URL was rejected (usually a 403).
 
-## 2. Mettre à jour les librairies (le plus souvent, ça suffit)
-Dans `gradle/libs.versions.toml` :
-- `innertubex` : dernière version sur github.com/MetrolistGroup/innertubex (onglet Releases).
-- `newpipe` : dernière version sur github.com/TeamNewPipe/NewPipeExtractor.
+## 2. Update the libraries (usually enough)
 
-Puis recompiler, réinstaller, tester un titre.
+In `gradle/libs.versions.toml`:
 
-## 3. Mettre à jour le code repris de Metrolist
-Si l'accueil ou la recherche ne s'affichent plus, ou si l'étape 2 ne compile pas :
+- `innertubex`: latest release on github.com/MetrolistGroup/innertubex
+- `newpipe`: latest release on github.com/TeamNewPipe/NewPipeExtractor
+
+Rebuild, reinstall, try a song.
+
+## 3. Update the code taken from Metrolist
+
+If home or search stop loading, or if step 2 does not compile:
 
     cd references/Metrolist && git pull
     cp -r innertube/src/main/kotlin/com ../../youtube/src/main/kotlin/
     cp -r app/src/main/kotlin/com/metrolist/music/utils/potoken ../../youtube/src/main/kotlin/com/metrolist/music/utils/
     cp app/src/main/assets/po_token.html ../../youtube/src/main/assets/
 
-Dans `PoTokenWebView.kt`, retirer l'import de `BuildConfig` et remplacer `BuildConfig.DEBUG` par `false`.
-Si `InnerTubeXPlayer.kt` de Metrolist a changé, reporter les différences dans
-`youtube/src/main/kotlin/app/ammusic/youtube/stream/InnerTubeXSource.kt` (c'est la même logique, allégée).
+In `PoTokenWebView.kt`, remove the `BuildConfig` import and replace `BuildConfig.DEBUG` with `false`.
+If Metrolist's `InnerTubeXPlayer.kt` changed, port the differences to
+`youtube/src/main/kotlin/app/ammusic/youtube/stream/InnerTubeXSource.kt` (same logic, trimmed down).
 
-## 4. Toujours cassé
-Regarder les derniers commits de Metrolist et de SimpMusic sur la lecture, et reporter le correctif
-dans le module `youtube`.
+## 4. Still broken
 
-## À savoir
-- Media3 : Metrolist reste en 1.10.1 car la 1.11.1 masquerait les commandes média sur Android 17.
-  Nous sommes en 1.11.1 (téléphone en Android 16). À revoir si le téléphone passe à Android 17.
+Look at the latest playback commits in Metrolist and SimpMusic and port the fix to the `youtube` module.
+
+## Notes
+
+- Media3: Metrolist stays on 1.10.1 because 1.11.1 reportedly hides the media controls on Android 17.
+  This project uses 1.11.1 (tested on Android 16). To revisit on Android 17.

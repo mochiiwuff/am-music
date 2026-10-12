@@ -1,73 +1,71 @@
-# Accès à YouTube Music — méthode retenue
+# Talking to YouTube Music
 
-Recherche faite le 2026-10-10 sur Metrolist (commit 2026-10-08), sa librairie
-`innertubex` v0.8.4 et SimpMusic (commit 2026-10-11, sous-module `core`).
-Les deux projets sont actifs ; Metrolist (Android pur) sert de modèle principal.
+Notes from October 2026, based on Metrolist, its `innertubex` library (v0.8.4) and SimpMusic.
+Both projects are active. Metrolist is Android only and is the main reference.
 
-## Flux audio
+## Audio streams
 
-**Méthode principale : `innertubex`** (`com.github.MetrolistGroup.innertubex:innertubex`, JitPack, GPL-3).
-C'est le moteur d'extraction de Metrolist, publié en librairie. Il gère seul :
-- le choix du client InnerTube et le repli de l'un à l'autre. Clients automatiques,
-  par priorité : `TVHTML5` (75) → `WEB_REMIX` (70) → `WEB_EMBEDDED_PLAYER` (65) →
-  `WEB_CREATOR` (55) → `TVHTML5_SIMPLY` (42). Les autres (`ANDROID_VR`, `IOS`…) sont en sonde seulement ;
-- le déchiffrement de signature et du paramètre `n` : le JS du lecteur YouTube est exécuté
-  sur l'appareil (QuickJS), les noms des fonctions venant d'une table distante
-  (`player_configs.json`) avec repli sur l'analyse du script et sur un cache ;
-- le contrat PoToken : l'appli fournit un `TokenProvider`.
+Main method: `innertubex` (`com.github.MetrolistGroup.innertubex:innertubex`, JitPack, GPL-3).
+It is Metrolist's extraction engine published as a library. It takes care of:
 
-Réglages repris de Metrolist (`InnerTubeXPlayer.kt`) : `allowSabr = false`, `allowHls = false`
-(ExoPlayer lit des URL directes), requêtes par plages bornées quand le flux l'exige.
+- choosing an InnerTube client and falling back from one to the next. Automatic clients by priority:
+  `TVHTML5` (75) → `WEB_REMIX` (70) → `WEB_EMBEDDED_PLAYER` (65) → `WEB_CREATOR` (55) → `TVHTML5_SIMPLY` (42).
+  The others (`ANDROID_VR`, `IOS`…) are only probed
+- signature and `n` parameter deciphering: the YouTube player JS runs on the device (QuickJS). Function names come
+  from a remote table (`player_configs.json`), with a fallback on parsing the script and on a cache
+- the PoToken contract: the app provides a `TokenProvider`
 
-**PoToken** : généré dans une WebView cachée (BotGuard), code repris de
-`Metrolist/app/.../utils/potoken/` (4 fichiers). Délai max 8 s, sinon on continue sans jeton.
+Settings taken from Metrolist (`InnerTubeXPlayer.kt`): `allowSabr = false`, `allowHls = false`
+(ExoPlayer reads direct URLs), bounded range requests when the stream requires them.
 
-**Erreurs 403 / 410 pendant la lecture** (`MusicService.kt` de Metrolist) :
-1. vider l'URL en cache pour ce titre ;
-2. marquer le client fautif comme « en échec » pour ce titre pendant 5 min ;
-3. rafraîchir la table de déchiffrement (`refreshAfterStreamRejection`) ;
-4. relancer à la même position, avec un nombre d'essais limité.
+PoToken: generated in a hidden WebView (BotGuard), code taken from `Metrolist/app/.../utils/potoken/` (4 files).
+It waits 8 s at most, then carries on without a token.
 
-**Secours n° 2 : NewPipeExtractor** (`com.github.teamnewpipe:NewPipeExtractor`), méthode de SimpMusic
-(qui enchaîne PipePipe local → PipePipe via serveur → BravePipe, avec un test HEAD de l'URL).
-Utilisé seulement si `innertubex` ne renvoie aucun flux lisible.
+403 / 410 errors during playback (Metrolist's `MusicService.kt`):
 
-Constaté le 2026-10-10 sur le téléphone : `innertubex` sert les flux avec le client `VISIONOS`,
-en URL directe, sans requêtes par plages, en 5 s environ au premier titre.
+1. drop the cached URL for the song
+2. mark the client as failed for that song for 5 minutes
+3. refresh the deciphering table (`refreshAfterStreamRejection`)
+4. retry from the same position, a limited number of times
 
-Chaîne finale dans notre appli : `innertubex` (5 clients) → NewPipeExtractor → message d'erreur + « Réessayer ».
-Toute la chaîne vit dans le module `youtube`, derrière une seule interface `StreamResolver`.
+Fallback: NewPipeExtractor (`com.github.teamnewpipe:NewPipeExtractor`), as SimpMusic does. Only used when
+`innertubex` returns no playable stream.
 
-## Navigation (accueil, recherche, pages, bibliothèque)
+Final chain: `innertubex` → NewPipeExtractor → error message with a retry button.
+It all lives in the `youtube` module behind `StreamResolver`.
 
-Requêtes InnerTube `browse` / `search` / `next` / `player` avec le client `WEB_REMIX`.
-On adapte le module `innertube` de Metrolist (82 fichiers, ~9 400 lignes : requêtes + analyse des réponses),
-en ne gardant que ce qui sert. HTTP : Ktor (moteur OkHttp) + kotlinx.serialization, comme eux.
+## Browsing (home, search, pages, library)
 
-Pièges relevés chez SimpMusic :
-- connecté, les files radio arrivent dans `playlistPanelVideoWrapperRenderer` (à lire, sinon 80 % des titres disparaissent) ;
-- `musicVideoType` se lit dans `watchEndpointMusicSupportedConfigs` (sert à distinguer titre / clip) ;
-- le bouton « Plus » d'une section porte son type de page dans `browseEndpointContextMusicConfig.pageType`.
+InnerTube `browse` / `search` / `next` / `player` requests with the `WEB_REMIX` client.
+The code is Metrolist's `innertube` module (requests and response parsing). HTTP is Ktor on OkHttp with kotlinx.serialization.
 
-## Connexion au compte
+Things to watch for, seen in SimpMusic:
 
-WebView sur `https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com`
-(`LoginScreen.kt` de Metrolist). Une fois sur `music.youtube.com` :
-- cookies : `CookieManager.getCookie("https://music.youtube.com")` ;
-- `VISITOR_DATA` et `DATASYNC_ID` lus en JavaScript dans `window.yt.config_`.
-L'en-tête `Authorization: SAPISIDHASH …` est calculé à partir du cookie `SAPISID`.
-Stockage chez nous : chiffré avec une clé Android Keystore. Déconnexion = effacer cookies + WebView.
+- when signed in, radio queues come in `playlistPanelVideoWrapperRenderer`
+- `musicVideoType` is in `watchEndpointMusicSupportedConfigs` (tells a song from a music video)
+- the "More" button of a section carries its page type in `browseEndpointContextMusicConfig.pageType`
 
-## Paroles
+## Sign-in
 
-Sources, dans l'ordre : LRCLIB (synchronisé ligne par ligne) → BetterLyrics (TTML, mot par mot) →
-KuGou → paroles YouTube Music (non synchronisées) → sous-titres YouTube.
-Metrolist a aussi LyricsPlus et Paxsenix (mot par mot) : à ajouter si besoin.
+WebView on `https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com`.
+Once on `music.youtube.com`:
+
+- cookies: `CookieManager.getCookie("https://music.youtube.com")`
+- `VISITOR_DATA` and `DATASYNC_ID` are read with JavaScript from `window.yt.config_`
+
+The `Authorization: SAPISIDHASH …` header is computed from the `SAPISID` cookie.
+The session is stored encrypted with an Android Keystore key. Signing out clears the cookies and the WebView.
+
+## Lyrics
+
+LRCLIB is the timing reference (line synced). LyricsPlus, then BetterLyrics, provide word-level timing, which is
+only used when it can be aligned on the LRCLIB lines. Unsynced lyrics are shown as plain text.
 
 ## SponsorBlock
 
-API publique `sponsor.ajay.app/api/skipSegments`, catégorie `music_offtopic` (+ intro / outro).
+Optional. Uses the hashed endpoint `sponsor.ajay.app/api/skipSegments/<first 4 hex chars of sha256(videoId)>`,
+categories `music_offtopic`, `intro`, `outro`, `sponsor`, `selfpromo`, `interaction`, `preview`.
 
-## Quand ça casse
+## When it breaks
 
-Voir `MAINTENANCE.md`. Premier réflexe : monter la version d'`innertubex` puis de NewPipeExtractor.
+See `MAINTENANCE.md`. First thing to try: bump `innertubex`, then NewPipeExtractor.
