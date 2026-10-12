@@ -76,40 +76,10 @@ fun LibraryScreen(onProfile: () -> Unit, viewModel: LibraryViewModel = hiltViewM
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val actions = LocalActions.current
     LaunchedEffect(account) { viewModel.refresh() }
-    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-    val artists by viewModel.artists.collectAsStateWithLifecycle()
-    val albums by viewModel.albums.collectAsStateWithLifecycle()
-    val liked by viewModel.liked.collectAsStateWithLifecycle()
-    val history by viewModel.history.collectAsStateWithLifecycle()
-    var settled by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(600)
-        settled = true
-    }
 
     LargeTitleScreen(title = tr("Bibliothèque", "Library"), trailing = { ProfileButton(onProfile) }) {
-        item(key = "shelves", contentType = "shelves") {
-            val counts = mapOf(
-                LibraryKind.Playlists to playlists.size,
-                LibraryKind.Artists to artists.size,
-                LibraryKind.Albums to albums.size,
-                LibraryKind.Liked to liked.size,
-                LibraryKind.History to history.size,
-            )
-            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Shelves.chunked(2).forEachIndexed { row, pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        pair.forEachIndexed { column, shelf ->
-                            ShelfCard(
-                                shelf = shelf,
-                                count = counts[shelf.kind] ?: 0,
-                                modifier = Modifier.weight(1f).cascade(row * 2 + column, enabled = !settled),
-                                onClick = { actions.openLibrary(shelf.kind) },
-                            )
-                        }
-                    }
-                }
-            }
+        itemsIndexed(Shelves, key = { _, shelf -> shelf.kind }, contentType = { _, _ -> "shelf" }) { index, shelf ->
+            ShelfRow(shelf, divided = index < Shelves.lastIndex) { actions.openLibrary(shelf.kind) }
         }
         if (account == null) {
             item(key = "guest", contentType = "guest") { GuestCard(onConnect = actions.openLogin) }
@@ -126,23 +96,27 @@ fun LibraryScreen(onProfile: () -> Unit, viewModel: LibraryViewModel = hiltViewM
 }
 
 @Composable
-private fun ShelfCard(shelf: Shelf, count: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ShelfRow(shelf: Shelf, divided: Boolean, onClick: () -> Unit) {
     val colors = AmTheme.colors
-    Column(
-        modifier
-            .pressable(scale = 0.96f, haptic = true, label = shelf.label, onClick = onClick)
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .padding(14.dp),
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .pressable(scale = 0.98f, label = shelf.label, onClick = onClick)
+            .height(50.dp)
+            .hairlineBelow(if (divided) colors.hairline else Color.Transparent, 64.dp)
+            .padding(start = 20.dp, end = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(colors.accent), contentAlignment = Alignment.Center) {
-                AmIcon(shelf.icon, tint = Color.White, size = 20.dp)
-            }
-            Spacer(Modifier.weight(1f))
-            AmText("$count", style = AmTheme.type.title.copy(fontFeatureSettings = "tnum"))
+        Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+            AmIcon(shelf.icon, tint = colors.accent, size = 26.dp)
         }
-        AmText(shelf.label, style = AmTheme.type.headline, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 12.dp))
+        AmText(
+            text = shelf.label,
+            style = AmTheme.type.body.copy(fontSize = 20.sp, lineHeight = 25.sp),
+            maxLines = 1,
+            modifier = Modifier.weight(1f).padding(start = 14.dp),
+        )
+        AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 15.dp)
     }
 }
 
