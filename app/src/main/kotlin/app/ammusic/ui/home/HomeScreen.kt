@@ -51,6 +51,7 @@ import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.LocalAccount
 import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.RowCoverSize
+import app.ammusic.ui.components.hairlineBelow
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.sharedKey
@@ -137,11 +138,11 @@ private fun HeroCarousel(items: List<YtItem>, origin: String) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(items, key = { it.key }) { item ->
-            Box(Modifier.width(284.dp).height(348.dp).pressable(scale = 0.97f) { actions.open(item, origin, 720) }) {
+            Box(Modifier.size(264.dp).pressable(scale = 0.97f) { actions.open(item, origin, 720) }) {
                 Cover(
                     url = item.thumbnail,
                     modifier = Modifier.fillMaxSize(),
-                    corner = 22.dp,
+                    corner = 16.dp,
                     requestSize = 720,
                     elevated = true,
                     sharedKey = if (item is YtTrack) null else sharedKey(origin, item),
@@ -149,22 +150,20 @@ private fun HeroCarousel(items: List<YtItem>, origin: String) {
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .drawBehind {
-                            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000)), startY = size.height * 0.4f))
+                            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000)), startY = size.height * 0.58f))
                         }
-                        .padding(20.dp),
+                        .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
                     verticalArrangement = Arrangement.Bottom,
                 ) {
                     AmText(
                         text = item.kind(),
-                        style = AmTheme.type.caption.copy(letterSpacing = 0.1.em, fontWeight = FontWeight.SemiBold),
+                        style = AmTheme.type.caption.copy(letterSpacing = 0.08.em, fontWeight = FontWeight.SemiBold),
                         color = Color(0xCCFFFFFF),
                     )
-                    Spacer(Modifier.height(6.dp))
-                    AmText(item.title, style = AmTheme.type.title, color = Color.White, maxLines = 2)
-                    Spacer(Modifier.height(4.dp))
-                    AmText(item.subtitle, style = AmTheme.type.subhead, color = Color(0xCCFFFFFF), maxLines = 1)
+                    AmText(item.title, style = AmTheme.type.section, color = Color.White, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                    if (item.subtitle.isNotBlank()) AmText(item.subtitle, style = AmTheme.type.subhead, color = Color(0xCCFFFFFF), maxLines = 1)
                 }
             }
         }
@@ -176,12 +175,12 @@ private fun TrackGrid(tracks: List<YtItem>, origin: String) {
     val rows = tracks.size.coerceIn(1, 3)
     LazyHorizontalGrid(
         rows = GridCells.Fixed(rows),
-        modifier = Modifier.fillMaxWidth().height((64 * rows).dp),
+        modifier = Modifier.fillMaxWidth().height((60 * rows).dp),
         contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(tracks, key = { it.key }) { track ->
-            ItemRow(track, origin, Modifier.width(304.dp))
+            ItemRow(track, origin, Modifier.width(308.dp).hairlineBelow(AmTheme.colors.hairline, 60.dp).padding(vertical = 6.dp))
         }
     }
 }
@@ -224,7 +223,7 @@ private fun HomeSkeleton() {
         Box(Modifier.width(180.dp).height(24.dp).shimmer(RoundedCornerShape(8.dp)))
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            repeat(2) { Box(Modifier.width(284.dp).height(348.dp).shimmer(RoundedCornerShape(22.dp))) }
+            repeat(2) { Box(Modifier.size(264.dp).shimmer(RoundedCornerShape(16.dp))) }
         }
         Spacer(Modifier.height(36.dp))
         Box(Modifier.width(220.dp).height(24.dp).shimmer(RoundedCornerShape(8.dp)))

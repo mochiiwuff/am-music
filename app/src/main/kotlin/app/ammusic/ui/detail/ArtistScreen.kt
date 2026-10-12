@@ -57,6 +57,7 @@ import app.ammusic.ui.components.LocalScreenScope
 import app.ammusic.ui.components.RowsSkeleton
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.cascade
+import app.ammusic.ui.components.listRow
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.sharedCover
 import app.ammusic.ui.theme.AmTheme
@@ -129,7 +130,7 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
                             ItemRow(
                                 item = track,
                                 origin = origin,
-                                modifier = Modifier.fillMaxWidth().cascade(position, enabled = !settled).padding(horizontal = 20.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().cascade(position, enabled = !settled).listRow(),
                                 onClick = { actions.playAll(tracks, position, null) },
                             )
                         }

@@ -185,7 +185,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 }
                 itemsIndexed(state.tracks, key = { _, track -> track.id }, contentType = { _, _ -> "track" }) { index, track ->
                     val play = { actions.playAll(state.tracks, index, null) }
-                    val placed = Modifier.fillMaxWidth().animateItem().cascade(index, enabled = !settled).hairlineBelow(divider, 84.dp)
+                    val placed = Modifier.fillMaxWidth().animateItem().cascade(index, enabled = !settled).hairlineBelow(divider, 80.dp)
                     when {
                         state.isAlbum -> AlbumTrackRow(
                             index = index,

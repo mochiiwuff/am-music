@@ -71,6 +71,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.ammusic.data.library.CoverSeparator
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtAlbum
@@ -278,21 +279,21 @@ fun ItemRow(
         Box(contentAlignment = Alignment.Center) {
             Cover(
                 url = item.thumbnail,
-                modifier = Modifier.size(52.dp),
-                corner = 8.dp,
+                modifier = Modifier.size(48.dp),
+                corner = 6.dp,
                 requestSize = RowCoverSize,
                 circle = item is YtArtist,
                 sharedKey = if (track == null) sharedKey(origin, item) else null,
                 glyph = if (item is YtPlaylist) AmIcons.Playlist else null,
             )
             if (current) {
-                Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x8C000000)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x8C000000)), contentAlignment = Alignment.Center) {
                     NowPlayingBars(LocalNowPlaying.current.playing, Color.White)
                 }
             }
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            AmText(item.title, style = AmTheme.type.subhead, color = if (current) colors.accent else colors.text, maxLines = 1)
+            AmText(item.title, style = AmTheme.type.body.copy(fontSize = 16.sp, lineHeight = 21.sp), color = if (current) colors.accent else colors.text, maxLines = 1)
             AmText(item.caption(), style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
         }
         if (track != null) {
@@ -302,6 +303,9 @@ fun ItemRow(
         }
     }
 }
+
+@Composable
+fun Modifier.listRow(): Modifier = hairlineBelow(AmTheme.colors.hairline, 80.dp).padding(horizontal = 20.dp, vertical = 6.dp)
 
 private fun YtItem.caption(): String = subtitle.ifBlank { (this as? YtAlbum)?.year?.toString().orEmpty() }
 
@@ -358,7 +362,7 @@ fun RowsSkeleton(count: Int, modifier: Modifier = Modifier) {
     Column(modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         repeat(count) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(52.dp).shimmer(RoundedCornerShape(8.dp)))
+                Box(Modifier.size(48.dp).shimmer(RoundedCornerShape(6.dp)))
                 Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.fillMaxWidth(0.6f).height(14.dp).shimmer(RoundedCornerShape(6.dp)))
                     Box(Modifier.fillMaxWidth(0.35f).height(12.dp).shimmer(RoundedCornerShape(6.dp)))

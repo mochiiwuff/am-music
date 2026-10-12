@@ -2,6 +2,7 @@ package app.ammusic.ui.player
 
 import app.ammusic.youtube.tr
 
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
@@ -10,6 +11,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -45,6 +49,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -70,10 +75,15 @@ import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.theme.AmTheme
 import kotlinx.coroutines.delay
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 private val Soft = Color(0x99FFFFFF)
-private val LineStyle = AmTheme.type.title.copy(fontSize = 27.sp, lineHeight = 34.sp)
+private val LineStyle = AmTheme.type.title.copy(fontSize = 30.sp, lineHeight = 37.sp)
 
 private const val ResumeAfterMs = 3_000L
 
@@ -142,11 +152,29 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
     val dragged by list.interactionSource.collectIsDraggedAsState()
 
     val position = remember { mutableLongStateOf(player.positionMs) }
+    val waves = remember { mutableStateListOf<Wave>() }
+    val clock = remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
         while (true) {
-            withFrameNanos { }
-            position.longValue = player.positionMs
+            withFrameNanos { now ->
+                position.longValue = player.positionMs
+                if (waves.isNotEmpty()) {
+                    clock.longValue = now
+                    waves.removeAll { now - it.startNanos > WaveLifeNanos }
+                }
+            }
         }
+    }
+    val shift = { index: Int ->
+        var sum = 0f
+        if (waves.isNotEmpty()) {
+            val now = clock.longValue
+            for (wave in waves) {
+                val late = (index - wave.pivot).coerceIn(0, 9) * WaveStepNanos
+                sum += wave.distance * settle((now - wave.startNanos - late) / 1e9f)
+            }
+        }
+        sum
     }
     val current by remember(lines) {
         derivedStateOf { lines.indexOfLast { it.startMs <= position.longValue + LeadMs } }
@@ -163,7 +191,17 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
             if (current < 0 || dragged) return@LaunchedEffect
             val wait = touchedAt.longValue + ResumeAfterMs - System.currentTimeMillis()
             if (wait > 0) delay(wait)
-            list.animateScrollToItem(current, scrollOffset = -anchor)
+            val now = withFrameNanos { it }
+            val row = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == current }
+            if (row == null) {
+                list.animateScrollToItem(current, scrollOffset = -anchor)
+                return@LaunchedEffect
+            }
+            val moved = list.dispatchRawDelta((row.offset - anchor).toFloat())
+            if (abs(moved) > 0.5f) {
+                clock.longValue = now
+                waves.add(Wave(now, moved, current))
+            }
         }
 
         LazyColumn(
@@ -175,6 +213,8 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
                 LyricRow(
                     line = line,
                     distance = if (current < 0) 1 else abs(index - current),
+                    endMs = lines.getOrNull(index + 1)?.startMs ?: (line.startMs + 4_000L),
+                    shift = { shift(index) },
                     position = { position.longValue },
                     onClick = {
                         touchedAt.longValue = 0L
@@ -187,19 +227,19 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
 }
 
 @Composable
-private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onClick: () -> Unit) {
+private fun LyricRow(line: LyricLine, distance: Int, endMs: Long, shift: () -> Float, position: () -> Long, onClick: () -> Unit) {
     val active = distance == 0
-    val soft = spring<Float>(dampingRatio = 0.9f, stiffness = 140f)
+    val soft = spring<Float>(dampingRatio = 0.82f, stiffness = 120f)
     val light by animateFloatAsState(if (active) 1f else 0.34f, soft, label = "light")
-    val size by animateFloatAsState(if (active) 1f else 0.94f, soft, label = "size")
-    val haze by animateDpAsState(if (active) 0.dp else (0.7f * distance.coerceAtMost(4)).dp, spring(stiffness = 140f), label = "haze")
-    val text = line.text.ifBlank { "· · ·" }
+    val size by animateFloatAsState(if (active) 1f else 0.92f, soft, label = "size")
+    val haze by animateDpAsState(if (active) 0.dp else (0.8f * distance.coerceAtMost(4)).dp, spring(stiffness = 120f), label = "haze")
 
     Box(
         Modifier
             .fillMaxWidth()
+            .graphicsLayer { translationY = shift() }
             .pressable(scale = 0.98f, label = tr("Aller à ce passage", "Jump to this line"), onClick = onClick)
-            .padding(vertical = 10.dp)
+            .padding(vertical = 11.dp)
             .graphicsLayer {
                 alpha = light
                 scaleX = size
@@ -208,21 +248,70 @@ private fun LyricRow(line: LyricLine, distance: Int, position: () -> Long, onCli
             }
             .blur(haze, BlurredEdgeTreatment.Unbounded),
     ) {
-        if (active && line.words.isNotEmpty()) {
-            val now = position()
-            BasicText(
-                text = buildAnnotatedString {
-                    line.words.forEach { word ->
-                        val sung = ((now - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
-                        withStyle(SpanStyle(color = Color.White.copy(alpha = 0.42f + 0.58f * sung))) { append(word.text) }
-                    }
-                },
-                style = LineStyle,
-            )
-        } else {
-            BasicText(text = text, style = LineStyle, color = { Color.White })
+        when {
+            line.text.isBlank() -> InterludeDots(active) {
+                ((position() - line.startMs).toFloat() / (endMs - line.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
+            }
+
+            active && line.words.isNotEmpty() -> {
+                val now = position()
+                BasicText(
+                    text = buildAnnotatedString {
+                        line.words.forEach { word ->
+                            val sung = ((now - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
+                            if (sung <= 0f || sung >= 1f) {
+                                withStyle(SpanStyle(color = Color.White.copy(alpha = if (sung >= 1f) 1f else Unsung))) { append(word.text) }
+                            } else {
+                                val head = sung * (word.text.length + 1)
+                                word.text.forEachIndexed { index, letter ->
+                                    val lit = (head - index).coerceIn(0f, 1f)
+                                    withStyle(SpanStyle(color = Color.White.copy(alpha = Unsung + (1f - Unsung) * lit))) { append(letter) }
+                                }
+                            }
+                        }
+                    },
+                    style = LineStyle,
+                )
+            }
+
+            else -> BasicText(text = line.text, style = LineStyle, color = { Color.White })
         }
     }
+}
+
+@Composable
+private fun InterludeDots(active: Boolean, progress: () -> Float) {
+    val breath = if (active) {
+        rememberInfiniteTransition(label = "dots").animateFloat(0f, 1f, infiniteRepeatable(tween(2_600, easing = LinearEasing)), label = "breath")
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
+    val awake by animateFloatAsState(if (active) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = 160f), label = "awake")
+    Canvas(Modifier.height(37.dp).fillMaxWidth()) {
+        val radius = 5.5.dp.toPx()
+        val gap = 8.dp.toPx()
+        val filled = progress()
+        val swell = 1f + 0.12f * awake * sin(breath.value * 2f * PI.toFloat())
+        repeat(3) { index ->
+            val lit = if (active) (filled * 3f - index).coerceIn(0f, 1f) else 1f
+            val center = Offset((radius + index * (2f * radius + gap)) * swell, size.height / 2f)
+            drawCircle(Color.White, radius * swell, center, alpha = if (active) Unsung + (1f - Unsung) * lit else 1f)
+        }
+    }
+}
+
+private class Wave(val startNanos: Long, val distance: Float, val pivot: Int)
+
+private const val WaveStepNanos = 34_000_000L
+private const val WaveLifeNanos = 1_600_000_000L
+private const val Unsung = 0.42f
+
+private fun settle(seconds: Float): Float {
+    if (seconds <= 0f) return 1f
+    val pull = 11.5f
+    val damping = 0.86f
+    val swing = pull * sqrt(1f - damping * damping)
+    return exp(-damping * pull * seconds) * (cos(swing * seconds) + damping * pull / swing * sin(swing * seconds))
 }
 
 @Composable

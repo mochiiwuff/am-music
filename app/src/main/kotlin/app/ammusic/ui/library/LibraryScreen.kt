@@ -51,6 +51,7 @@ import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.TileCoverSize
 import app.ammusic.ui.components.cascade
 import app.ammusic.ui.components.hairlineBelow
+import app.ammusic.ui.components.listRow
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.sharedKey
 import app.ammusic.ui.detail.PillButton
@@ -229,7 +230,7 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
 
 private fun LazyListScope.rows(items: List<YtItem>, origin: String) {
     items(items, key = { it.key }, contentType = { "row" }) { item ->
-        ItemRow(item, origin, Modifier.fillMaxWidth().animateItem().padding(horizontal = 20.dp, vertical = 6.dp))
+        ItemRow(item, origin, Modifier.fillMaxWidth().animateItem().listRow())
     }
 }
 
@@ -250,7 +251,7 @@ private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyHin
         ItemRow(
             item = track,
             origin = origin,
-            modifier = Modifier.fillMaxWidth().animateItem().padding(horizontal = 20.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().animateItem().listRow(),
             onClick = { actions.playAll(tracks, index, null) },
         )
     }

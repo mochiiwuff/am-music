@@ -23,6 +23,7 @@ import app.ammusic.ui.components.ErrorState
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.ItemCarousel
 import app.ammusic.ui.components.ItemRow
+import app.ammusic.ui.components.listRow
 import app.ammusic.ui.components.ItemTile
 import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.LocalActions
@@ -69,7 +70,7 @@ fun BrowseScreen(viewModel: BrowseViewModel = hiltViewModel()) {
                         ItemRow(
                             item = track,
                             origin = "browse",
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth().listRow(),
                             onClick = { actions.playAll(tracks, index, null) },
                         )
                     }

@@ -45,6 +45,7 @@ import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.ItemRow
 import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.SectionHeader
+import app.ammusic.ui.components.listRow
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.RowsSkeleton
 import app.ammusic.ui.home.MoodRow
@@ -147,7 +148,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                         SectionHeader(section.title, top = if (index == 0) 12.dp else 24.dp, onMore = filter?.let { { viewModel.onFilter(it) } })
                     }
                     items(section.items, key = { "$index:${it.key}" }, contentType = { "result" }) { item ->
-                        ItemRow(item, "search$index", Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp))
+                        ItemRow(item, "search$index", Modifier.fillMaxWidth().listRow())
                     }
                 }
             }
@@ -163,7 +164,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
                     }
                 }
                 items(results.items, key = { it.key }, contentType = { "result" }) { item ->
-                    ItemRow(item, "searchFiltered", Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp))
+                    ItemRow(item, "searchFiltered", Modifier.fillMaxWidth().listRow())
                 }
                 if (results.continuation != null) {
                     item(key = "more", contentType = "more") {
@@ -225,10 +226,10 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onSubmit: () 
         modifier = Modifier
             .padding(horizontal = 20.dp, vertical = 4.dp)
             .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(colors.surface)
-            .padding(start = 14.dp),
+            .padding(start = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AmIcon(AmIcons.Search, tint = colors.textSecondary, size = 20.dp)
