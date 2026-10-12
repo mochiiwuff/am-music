@@ -27,6 +27,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import app.ammusic.MainActivity
 import app.ammusic.R
+import app.ammusic.data.UserSettings
 import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.stream.StreamInfo
 import com.google.common.util.concurrent.Futures
@@ -45,7 +46,6 @@ import java.io.IOException
 
 private const val TAG = "AmPlayback"
 private const val MAX_RETRIES = 6
-private const val CACHE_BYTES = 512L * 1024 * 1024
 
 fun trackUri(videoId: String) = "ammusic://track/$videoId".toUri()
 
@@ -65,7 +65,7 @@ class PlaybackService : MediaSessionService() {
         val resolving = ResolvingDataSource.Factory(cached) { spec ->
             val videoId = spec.key ?: throw IOException("Titre sans identifiant")
             val stream = try {
-                runBlocking(Dispatchers.IO) { YouTubeMusic.streams.resolve(videoId) }
+                runBlocking(Dispatchers.IO) { YouTubeMusic.streams.resolve(videoId, UserSettings.streamQuality(this@PlaybackService), sticky = spec.position > 0L) }
             } catch (e: Exception) {
                 throw IOException(e)
             }
@@ -159,7 +159,9 @@ private fun PlaybackException.isHttpRejection(): Boolean {
 
 @OptIn(UnstableApi::class)
 private fun DataSpec.withStream(stream: StreamInfo): DataSpec {
-    val resolved = withUri(stream.url.toUri()).withRequestHeaders(httpRequestHeaders + stream.headers)
+    val total = stream.contentLength
+    val format = if (key != null && total != null) "$key@$total" else key
+    val resolved = buildUpon().setUri(stream.url.toUri()).setKey(format).setHttpRequestHeaders(httpRequestHeaders + stream.headers).build()
     if (stream.chunkBytes <= 0L) return resolved
     val bounded = if (length == C.LENGTH_UNSET.toLong()) stream.chunkBytes else minOf(length, stream.chunkBytes)
     return resolved.subrange(0, bounded)
@@ -171,6 +173,15 @@ private var cache: SimpleCache? = null
 @Synchronized
 private fun audioCache(context: Context): SimpleCache = cache ?: SimpleCache(
     File(context.cacheDir, "audio"),
-    LeastRecentlyUsedCacheEvictor(CACHE_BYTES),
+    LeastRecentlyUsedCacheEvictor(UserSettings.current.cacheMb * 1024L * 1024L),
     StandaloneDatabaseProvider(context.applicationContext),
 ).also { cache = it }
+
+@OptIn(UnstableApi::class)
+fun audioCacheBytes(context: Context): Long = audioCache(context).cacheSpace
+
+@OptIn(UnstableApi::class)
+fun clearAudioCache(context: Context, keep: String?) {
+    val cache = audioCache(context)
+    cache.keys.toList().filterNot { keep != null && it.startsWith(keep) }.forEach(cache::removeResource)
+}

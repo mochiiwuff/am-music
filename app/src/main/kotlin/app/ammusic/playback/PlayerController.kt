@@ -12,6 +12,8 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.ammusic.data.MusicRepository
+import app.ammusic.data.SkipSegments
+import app.ammusic.data.UserSettings
 import app.ammusic.data.library.LibraryRepository
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.model.isVideoThumbnail
@@ -27,6 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
@@ -35,6 +38,10 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 enum class RepeatMode { Off, All, One }
+
+data class SleepTimer(val endsAtMs: Long? = null, val endOfTrack: Boolean = false, val minutes: Int? = null) {
+    val active: Boolean get() = endsAtMs != null || endOfTrack
+}
 
 data class PlayerState(
     val track: YtTrack? = null,
@@ -55,6 +62,7 @@ class PlayerController @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val repository: MusicRepository,
     private val library: LibraryRepository,
+    private val segments: SkipSegments,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlayerState())
@@ -64,6 +72,10 @@ class PlayerController @Inject constructor(
     private var player: MediaController? = null
     private var radio: Job? = null
     private var coverJob: Job? = null
+    private var skipJob: Job? = null
+    private var sleepJob: Job? = null
+    private val _sleep = MutableStateFlow(SleepTimer())
+    val sleep: StateFlow<SleepTimer> = _sleep.asStateFlow()
     private val covers = HashMap<String, String?>()
 
     val positionMs: Long get() = player?.currentPosition ?: 0L
@@ -172,7 +184,55 @@ class PlayerController @Inject constructor(
         }
     }
 
+    fun sleepIn(minutes: Int?) {
+        sleepJob?.cancel()
+        if (minutes == null) {
+            _sleep.value = SleepTimer()
+            return
+        }
+        _sleep.value = SleepTimer(endsAtMs = System.currentTimeMillis() + minutes * 60_000L, minutes = minutes)
+        sleepJob = scope.launch {
+            delay(minutes * 60_000L)
+            val player = player
+            if (player != null && player.isPlaying) {
+                repeat(24) { step ->
+                    player.volume = 1f - (step + 1) / 24f
+                    delay(150)
+                }
+                player.pause()
+                player.volume = 1f
+            }
+            _sleep.value = SleepTimer()
+        }
+    }
+
+    fun sleepAtEndOfTrack() {
+        sleepJob?.cancel()
+        _sleep.value = SleepTimer(endOfTrack = true)
+    }
+
+    private fun watchSegments(player: MediaController) {
+        skipJob?.cancel()
+        if (!UserSettings.current.skipSegments) return
+        val id = player.currentMediaItem?.mediaId ?: return
+        skipJob = scope.launch {
+            val parts = segments.find(id)
+            if (parts.isEmpty()) return@launch
+            while (player.currentMediaItem?.mediaId == id) {
+                if (player.isPlaying) {
+                    val position = player.currentPosition
+                    parts.firstOrNull { position >= it.startMs && position < it.endMs - 300 }?.let { part ->
+                        Log.d("AmPlayback", "passage sauté dans $id : ${part.startMs} → ${part.endMs} ms")
+                        player.seekTo(part.endMs)
+                    }
+                }
+                delay(350)
+            }
+        }
+    }
+
     private fun extendQueue(player: MediaController) {
+        if (!UserSettings.current.autoplay) return
         if (radio?.isActive == true || player.mediaItemCount == 0) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3) return
         val seed = player.getMediaItemAt(player.mediaItemCount - 1).mediaId
@@ -199,7 +259,16 @@ class PlayerController @Inject constructor(
                     if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
                         extendQueue(controller)
                         fixCover(controller)
-                        controller.currentMediaItem?.toTrack()?.let(library::recordPlay)
+                        watchSegments(controller)
+                        if (!UserSettings.current.historyPaused) controller.currentMediaItem?.toTrack()?.let(library::recordPlay)
+                    }
+                    if (player.playbackState == Player.STATE_ENDED && _sleep.value.endOfTrack) _sleep.value = SleepTimer()
+                }
+
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    if (_sleep.value.endOfTrack && reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                        controller.pause()
+                        _sleep.value = SleepTimer()
                     }
                 }
             })

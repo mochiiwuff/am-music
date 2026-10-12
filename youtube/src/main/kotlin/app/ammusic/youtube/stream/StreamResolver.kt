@@ -31,14 +31,18 @@ class StreamResolver(
     private val sources: List<StreamSource>,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
-    private val cache = ConcurrentHashMap<String, StreamInfo>()
+    private class Resolved(val quality: AudioQuality, val info: StreamInfo)
 
-    suspend fun resolve(videoId: String, quality: AudioQuality = AudioQuality.Auto): StreamInfo {
-        cache[videoId]?.takeIf { it.expiresAtMs - now() > 60_000L }?.let { return it }
+    private val cache = ConcurrentHashMap<String, Resolved>()
+
+    suspend fun resolve(videoId: String, requested: AudioQuality = AudioQuality.Auto, sticky: Boolean = false): StreamInfo {
+        val known = cache[videoId]
+        val quality = if (sticky && known != null) known.quality else requested
+        known?.takeIf { it.quality == quality && it.info.expiresAtMs - now() > 60_000L }?.let { return it.info }
         val errors = mutableListOf<Throwable>()
         for (source in sources) {
             try {
-                return source.resolve(videoId, quality).also { cache[videoId] = it }
+                return source.resolve(videoId, quality).also { cache[videoId] = Resolved(quality, it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -49,9 +53,9 @@ class StreamResolver(
     }
 
     suspend fun reject(videoId: String) {
-        val stream = cache.remove(videoId) ?: return
+        val stream = cache.remove(videoId)?.info ?: return
         sources.firstOrNull { it.name == stream.source }?.onRejected(videoId, stream)
     }
 
-    fun cached(videoId: String): StreamInfo? = cache[videoId]
+    fun cached(videoId: String): StreamInfo? = cache[videoId]?.info
 }

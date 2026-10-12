@@ -2,6 +2,7 @@ package app.ammusic
 
 import android.app.Application
 import app.ammusic.data.AccountStore
+import app.ammusic.data.UserSettings
 import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.isFrench
 import java.util.Locale
@@ -18,6 +19,7 @@ class AmApp : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        UserSettings.init(this)
         val locale = Locale.getDefault()
         YouTubeMusic.init(this, country = locale.country.ifEmpty { "US" }, language = if (isFrench) "fr" else "en")
         account.restore()

@@ -65,6 +65,7 @@ Cette partie est volontairement précise : vous pouvez tout vérifier dans le co
 - **Aucun serveur à nous.** L'appli ne parle qu'à :
   - YouTube et YouTube Music, pour le catalogue et le son ;
   - [LRCLIB](https://lrclib.net), LyricsPlus et BetterLyrics, pour les paroles (elle leur envoie le titre, l'artiste, l'album et la durée du morceau) ;
+  - [SponsorBlock](https://sponsor.ajay.app), seulement si vous activez « Passer les passages sans musique » (elle lui envoie les 4 premiers caractères d'une empreinte du titre, jamais son identifiant complet) ;
   - Google, uniquement si vous choisissez de vous connecter.
 - **Votre mot de passe ne passe jamais par l'appli.** La connexion se fait sur la page officielle de Google, affichée dans une fenêtre web.
   L'appli récupère ensuite la session de YouTube Music, l'enregistre **chiffrée** (AES-GCM, clé gardée par l'Android Keystore) et ne l'envoie nulle part ailleurs qu'à YouTube.
@@ -124,6 +125,7 @@ AM Music existe grâce au travail de projets libres :
 - [SimpMusic](https://github.com/maxrave-dev/SimpMusic), pour ses méthodes de secours.
 - [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), utilisé en solution de repli.
 - LRCLIB, LyricsPlus et BetterLyrics, pour les paroles.
+- [SponsorBlock](https://sponsor.ajay.app), pour repérer les passages sans musique.
 - [Inter](https://rsms.me/inter/), Haze, Coil, Media3 et Reorderable.
 
 ## Licence

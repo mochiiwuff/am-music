@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.ammusic.data.UserSettings
 import app.ammusic.ui.AppRoot
 import app.ammusic.ui.theme.AccentChoices
 import app.ammusic.ui.theme.AmTheme
@@ -31,8 +33,9 @@ class MainActivity : ComponentActivity() {
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         setContent {
-            var themeMode by rememberSaveable { mutableStateOf(ThemeMode.System) }
-            var accentIndex by rememberSaveable { mutableIntStateOf(0) }
+            val settings by UserSettings.state.collectAsStateWithLifecycle()
+            val themeMode = ThemeMode.entries[settings.theme.coerceIn(0, ThemeMode.entries.lastIndex)]
+            val accentIndex = settings.accent.coerceIn(0, AccentChoices.lastIndex)
             val dark = when (themeMode) {
                 ThemeMode.System -> isSystemInDarkTheme()
                 ThemeMode.Dark -> true
@@ -52,9 +55,9 @@ class MainActivity : ComponentActivity() {
             AmTheme(dark = dark, accent = AccentChoices[accentIndex]) {
                 AppRoot(
                     themeMode = themeMode,
-                    onThemeMode = { themeMode = it },
+                    onThemeMode = { mode -> UserSettings.update { copy(theme = mode.ordinal) } },
                     accentIndex = accentIndex,
-                    onAccent = { accentIndex = it },
+                    onAccent = { index -> UserSettings.update { copy(accent = index) } },
                 )
             }
         }

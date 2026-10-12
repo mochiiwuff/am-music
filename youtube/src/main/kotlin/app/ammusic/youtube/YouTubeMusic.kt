@@ -41,9 +41,13 @@ object YouTubeMusic {
         private set
 
     fun init(context: Context, country: String = "FR", language: String = "fr") {
-        YouTube.locale = YouTubeLocale(gl = country, hl = language)
+        setLanguage(country, language)
         streams = StreamResolver(listOf(InnerTubeXSource(context), NewPipeSource()))
         guestVisitorData = YouTube.visitorData
+    }
+
+    fun setLanguage(country: String, language: String) {
+        YouTube.locale = YouTubeLocale(gl = country, hl = language)
     }
 
     suspend fun home(): Result<List<YtSection>> = io {

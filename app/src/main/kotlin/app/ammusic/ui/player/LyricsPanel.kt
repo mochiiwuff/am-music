@@ -59,12 +59,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.ammusic.data.UserSettings
 import app.ammusic.data.lyrics.LyricLine
 import app.ammusic.data.lyrics.Lyrics
 import app.ammusic.playback.PlayerState
@@ -83,7 +85,11 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 private val Soft = Color(0x99FFFFFF)
-private val LineStyle = AmTheme.type.title.copy(fontSize = 30.sp, lineHeight = 37.sp)
+private val LineStyles = listOf(
+    AmTheme.type.title.copy(fontSize = 25.sp, lineHeight = 32.sp),
+    AmTheme.type.title.copy(fontSize = 30.sp, lineHeight = 37.sp),
+    AmTheme.type.title.copy(fontSize = 35.sp, lineHeight = 43.sp),
+)
 
 private const val ResumeAfterMs = 3_000L
 
@@ -94,6 +100,8 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
     val visible by remember { derivedStateOf { progress() > 0f } }
     if (!visible) return
     val lyrics by player.lyrics.collectAsStateWithLifecycle()
+    val settings by UserSettings.state.collectAsStateWithLifecycle()
+    val style = LineStyles[settings.lyricsSize.coerceIn(0, LineStyles.lastIndex)]
     LaunchedEffect(state.track?.id) { player.loadLyrics() }
 
     Column(
@@ -119,7 +127,7 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
         Box(Modifier.weight(1f).fillMaxWidth().fadedEdges()) {
             when (val current = lyrics) {
                 null -> LyricsSkeleton()
-                is Lyrics.Synced -> SyncedLyrics(current.lines, player)
+                is Lyrics.Synced -> SyncedLyrics(current.lines, player, style, settings.wordByWord)
                 is Lyrics.Plain -> PlainLyrics(current.text)
                 Lyrics.None -> Message(tr("Pas de paroles trouvées pour ce titre.", "No lyrics found for this song."))
             }
@@ -147,7 +155,7 @@ private fun Modifier.fadedEdges(): Modifier = graphicsLayer { compositingStrateg
 }
 
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
+private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel, style: TextStyle, wordByWord: Boolean) {
     val list = rememberLazyListState()
     val dragged by list.interactionSource.collectIsDraggedAsState()
 
@@ -212,6 +220,8 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
             itemsIndexed(lines, key = { index, _ -> index }) { index, line ->
                 LyricRow(
                     line = line,
+                    style = style,
+                    wordByWord = wordByWord,
                     distance = if (current < 0) 1 else abs(index - current),
                     endMs = lines.getOrNull(index + 1)?.startMs ?: (line.startMs + 4_000L),
                     shift = { shift(index) },
@@ -227,7 +237,7 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel) {
 }
 
 @Composable
-private fun LyricRow(line: LyricLine, distance: Int, endMs: Long, shift: () -> Float, position: () -> Long, onClick: () -> Unit) {
+private fun LyricRow(line: LyricLine, style: TextStyle, wordByWord: Boolean, distance: Int, endMs: Long, shift: () -> Float, position: () -> Long, onClick: () -> Unit) {
     val active = distance == 0
     val soft = spring<Float>(dampingRatio = 0.82f, stiffness = 120f)
     val light by animateFloatAsState(if (active) 1f else 0.34f, soft, label = "light")
@@ -253,7 +263,7 @@ private fun LyricRow(line: LyricLine, distance: Int, endMs: Long, shift: () -> F
                 ((position() - line.startMs).toFloat() / (endMs - line.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
             }
 
-            active && line.words.isNotEmpty() -> {
+            active && wordByWord && line.words.isNotEmpty() -> {
                 val now = position()
                 BasicText(
                     text = buildAnnotatedString {
@@ -270,11 +280,11 @@ private fun LyricRow(line: LyricLine, distance: Int, endMs: Long, shift: () -> F
                             }
                         }
                     },
-                    style = LineStyle,
+                    style = style,
                 )
             }
 
-            else -> BasicText(text = line.text, style = LineStyle, color = { Color.White })
+            else -> BasicText(text = line.text, style = style, color = { Color.White })
         }
     }
 }
