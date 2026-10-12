@@ -16,6 +16,7 @@ import app.ammusic.youtube.model.YtSearchPage
 import app.ammusic.youtube.model.YtSection
 import app.ammusic.youtube.model.YtSession
 import app.ammusic.youtube.model.YtTrack
+import app.ammusic.youtube.model.isVideoThumbnail
 import app.ammusic.youtube.stream.InnerTubeXSource
 import app.ammusic.youtube.stream.NewPipeSource
 import app.ammusic.youtube.stream.StreamResolver
@@ -148,6 +149,17 @@ object YouTubeMusic {
     suspend fun mood(browseId: String, params: String?): Result<YtBrowsePage> = io {
         YouTube.browse(browseId, params).map { page ->
             YtBrowsePage(page.title.orEmpty(), page.items.mapNotNull { section(it.title.orEmpty(), it.items) })
+        }
+    }
+
+    suspend fun songCover(track: YtTrack): Result<String?> = io {
+        val guesses = songGuesses(track.title, track.artists)
+        val first = guesses.first()
+        YouTube.search("${first.title} ${first.artist}", YouTube.SearchFilter.FILTER_SONG).map { page ->
+            page.items.filterIsInstance<SongItem>()
+                .firstOrNull { song -> guesses.any { sameSong(song.title, song.artists.joinToString(" ") { it.name }, it) } }
+                ?.thumbnail
+                ?.takeUnless { it.isVideoThumbnail() }
         }
     }
 

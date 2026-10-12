@@ -2,6 +2,7 @@ package app.ammusic.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.media3.common.C
@@ -13,6 +14,7 @@ import androidx.media3.session.SessionToken
 import app.ammusic.data.MusicRepository
 import app.ammusic.data.library.LibraryRepository
 import app.ammusic.youtube.model.YtTrack
+import app.ammusic.youtube.model.isVideoThumbnail
 import app.ammusic.youtube.model.thumbnailAt
 import com.google.common.util.concurrent.MoreExecutors
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -61,6 +63,8 @@ class PlayerController @Inject constructor(
     private var connection: Deferred<MediaController>? = null
     private var player: MediaController? = null
     private var radio: Job? = null
+    private var coverJob: Job? = null
+    private val covers = HashMap<String, String?>()
 
     val positionMs: Long get() = player?.currentPosition ?: 0L
 
@@ -151,6 +155,23 @@ class PlayerController @Inject constructor(
         scope.launch { block(controller()) }
     }
 
+    private fun fixCover(player: MediaController) {
+        val track = player.currentMediaItem?.toTrack() ?: return
+        if (track.thumbnail?.isVideoThumbnail() != true) return
+        coverJob?.cancel()
+        coverJob = scope.launch {
+            if (track.id !in covers) {
+                covers[track.id] = repository.songCover(track).getOrElse { return@launch }
+                Log.d("AmPlayback", "pochette de ${track.id} : ${if (covers[track.id] != null) "trouvée" else "aucune"}")
+            }
+            val cover = covers[track.id] ?: return@launch
+            val index = (0 until player.mediaItemCount).firstOrNull { player.getMediaItemAt(it).mediaId == track.id } ?: return@launch
+            val item = player.getMediaItemAt(index)
+            val metadata = item.mediaMetadata.buildUpon().setArtworkUri(cover.thumbnailAt(544).toUri()).build()
+            player.replaceMediaItem(index, item.buildUpon().setMediaMetadata(metadata).build())
+        }
+    }
+
     private fun extendQueue(player: MediaController) {
         if (radio?.isActive == true || player.mediaItemCount == 0) return
         if (player.mediaItemCount - player.currentMediaItemIndex > 3) return
@@ -177,6 +198,7 @@ class PlayerController @Inject constructor(
                     publish(player)
                     if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
                         extendQueue(controller)
+                        fixCover(controller)
                         controller.currentMediaItem?.toTrack()?.let(library::recordPlay)
                     }
                 }

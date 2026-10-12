@@ -88,3 +88,5 @@ fun String.thumbnailAt(size: Int): String = when {
     size >= 720 -> VideoThumbnail.matchEntire(this)?.let { "https://i.ytimg.com/vi/${it.groupValues[1]}/hq720.jpg" } ?: this
     else -> this
 }
+
+fun String.isVideoThumbnail(): Boolean = VideoThumbnail.matches(this)
