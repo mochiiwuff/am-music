@@ -33,7 +33,10 @@ Requires Android 9 or newer.
 - Home screen widget and Android Auto support
 - Monthly and yearly listening recap, built from your local history
 - Share a few lines of lyrics as an image, or show a translation under each line
-- Settings: audio quality on Wi-Fi and mobile data, equalizer, sleep timer, cache size, optional SponsorBlock, light and dark theme, French and English
+- Add songs to a playlist from a search screen, save the queue as a playlist, search inside your library
+- Even volume between songs, crossfade up to 12 seconds, sleep timer from the player
+- Export and restore your local playlists, history, recap and settings
+- Settings: audio quality on Wi-Fi and mobile data, equalizer, cache size, optional SponsorBlock, light and dark theme, French and English
 
 ## Install
 
@@ -59,6 +62,8 @@ There are no ads, no analytics and no server of mine. The app only talks to:
 - [SponsorBlock](https://sponsor.ajay.app), only if you turn on "Skip non-music parts" (it receives the first 4 characters of a hash of the video id)
 - Google Translate, only when you turn on lyrics translation (it receives the lyrics of the current song)
 - Google, only if you sign in
+
+When you are signed in, songs you play for more than 30 seconds are added to your YouTube Music history, like in the official app. You can turn this off in Settings.
 
 Sign-in happens on Google's own page inside a WebView, so the app never sees your password. The resulting session is stored encrypted (AES-GCM, key in the Android Keystore) and is only sent to YouTube. Signing out deletes it. Android backups are disabled for the app.
 

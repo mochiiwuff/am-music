@@ -110,6 +110,7 @@ object AmIcons {
             Part("M12 3.5 C15.2 6.6 15.2 17.4 12 20.5"),
         )
     }
+    val Moon by lazy { icon("Moon", Part("M19.6 14.6 A7.9 7.9 0 1 1 9.4 4.4 A6.3 6.3 0 0 0 19.6 14.6 Z")) }
     val Queue by lazy {
         icon("Queue", Part("M4 6.5 H20"), Part("M4 11.5 H11.5"), Part("M4 16.5 H11.5"), Part("M15.4 11.6 L20.4 14.5 L15.4 17.4 Z", fill = true, stroke = 1.4f))
     }

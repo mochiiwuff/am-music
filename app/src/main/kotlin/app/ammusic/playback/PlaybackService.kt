@@ -57,6 +57,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.PI
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import java.io.File
 import java.io.IOException
@@ -82,6 +86,11 @@ class PlaybackService : MediaLibraryService() {
     private var saveJob: Job? = null
     private var widgetJob: Job? = null
     private var widgetArt: Pair<String, Pair<Bitmap?, Int?>>? = null
+    private lateinit var sources: DefaultMediaSourceFactory
+    private var fading: ExoPlayer? = null
+    private var fadeJob: Job? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val musicAttributes = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
 
     override fun onCreate() {
         super.onCreate()
@@ -90,17 +99,10 @@ class PlaybackService : MediaLibraryService() {
             .setCache(audioCache(this))
             .setUpstreamDataSourceFactory(OkHttpDataSource.Factory(OkHttpClient()))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        Loudness.init(this)
         val resolving = ResolvingDataSource.Factory(DefaultDataSource.Factory(this, cached)) { spec -> resolve(spec) }
-
-        player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(resolving))
-            .setAudioAttributes(
-                AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
-                true,
-            )
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .build()
+        sources = DefaultMediaSourceFactory(resolving)
+        player = newPlayer(focus = true)
         player.addListener(recovery)
         player.addListener(watcher)
         restoreQueue()
@@ -122,12 +124,102 @@ class PlaybackService : MediaLibraryService() {
             UserSettings.state.map { it.equalizerGains() }.distinctUntilChanged().collect(::applyEqualizer)
         }
         scope.launch {
+            UserSettings.state.map { it.normalizeVolume }.distinctUntilChanged().collect { applyGain() }
+        }
+        scope.launch {
+            while (true) {
+                delay(250)
+                maybeCrossfade()
+            }
+        }
+        scope.launch {
             while (true) {
                 delay(10_000)
                 if (player.isPlaying) QueueStore.save(this@PlaybackService, player)
             }
         }
         updateWidget()
+    }
+
+    private fun newPlayer(focus: Boolean): ExoPlayer = ExoPlayer.Builder(this)
+        .setMediaSourceFactory(sources)
+        .setAudioAttributes(musicAttributes, focus)
+        .setHandleAudioBecomingNoisy(true)
+        .setWakeMode(C.WAKE_MODE_NETWORK)
+        .build()
+
+    private fun gainFor(item: MediaItem?): Float =
+        if (UserSettings.current.normalizeVolume) Loudness.gain(item?.mediaId) else 1f
+
+    private fun applyGain() {
+        if (fadeJob?.isActive == true) return
+        val gain = gainFor(player.currentMediaItem)
+        if (gain != player.volume) Log.d(TAG, "volume réglé à ${"%.2f".format(gain)} pour ${player.currentMediaItem?.mediaId}")
+        player.volume = gain
+    }
+
+    private fun maybeCrossfade() {
+        val seconds = UserSettings.current.crossfadeSeconds
+        if (seconds <= 0 || fadeJob?.isActive == true || PlaybackFlags.stopAtEnd) return
+        val current = player
+        if (!current.isPlaying || current.repeatMode == Player.REPEAT_MODE_ONE || !current.hasNextMediaItem()) return
+        val duration = current.duration
+        if (duration == C.TIME_UNSET || duration < seconds * 3_000L) return
+        val remaining = duration - current.currentPosition
+        if (remaining > seconds * 1_000L || remaining < 1_000L) return
+        fadeJob = scope.launch { crossfade(current, (remaining - 250L).coerceIn(1_000L, seconds * 1_000L)) }
+    }
+
+    private suspend fun crossfade(outgoing: ExoPlayer, lengthMs: Long) {
+        val nextIndex = outgoing.nextMediaItemIndex
+        if (nextIndex == C.INDEX_UNSET) return
+        val items = List(outgoing.mediaItemCount) { outgoing.getMediaItemAt(it) }
+        val incoming = newPlayer(focus = false)
+        incoming.setMediaItems(items, nextIndex, 0L)
+        incoming.shuffleModeEnabled = outgoing.shuffleModeEnabled
+        incoming.repeatMode = outgoing.repeatMode
+        incoming.volume = 0f
+        incoming.prepare()
+        incoming.play()
+        val ready = withTimeoutOrNull(6_000) {
+            while (incoming.playbackState != Player.STATE_READY) delay(50)
+            true
+        }
+        if (ready == null || player !== outgoing || !outgoing.isPlaying) {
+            Log.w(TAG, "fondu annulé")
+            incoming.release()
+            return
+        }
+        outgoing.removeListener(recovery)
+        outgoing.removeListener(watcher)
+        outgoing.setAudioAttributes(musicAttributes, false)
+        session?.player = incoming
+        incoming.addListener(recovery)
+        incoming.addListener(watcher)
+        incoming.setAudioAttributes(musicAttributes, true)
+        player = incoming
+        fading = outgoing
+        equalizer?.release()
+        equalizer = null
+        applyEqualizer(UserSettings.current.equalizerGains())
+        Log.i(TAG, "fondu de ${lengthMs / 1000} s vers ${incoming.currentMediaItem?.mediaId}")
+        val from = gainFor(outgoing.currentMediaItem)
+        val to = gainFor(incoming.currentMediaItem)
+        val start = System.currentTimeMillis()
+        try {
+            while (true) {
+                val t = ((System.currentTimeMillis() - start).toFloat() / lengthMs).coerceIn(0f, 1f)
+                if (!incoming.playWhenReady) break
+                outgoing.volume = from * cos(t * PI.toFloat() / 2f)
+                incoming.volume = to * sin(t * PI.toFloat() / 2f)
+                if (t >= 1f || outgoing.playbackState == Player.STATE_ENDED) break
+                delay(40)
+            }
+        } finally {
+            incoming.volume = to
+            outgoing.release()
+            if (fading === outgoing) fading = null
+        }
     }
 
     private fun resolve(spec: DataSpec): DataSpec {
@@ -143,6 +235,10 @@ class PlaybackService : MediaLibraryService() {
             throw IOException(e)
         }
         if (spec.position == 0L) Log.i(TAG, "Flux $videoId via ${stream.source}/${stream.client}, plages de ${stream.chunkBytes} octets")
+        if (stream.loudnessDb != null && spec.position == 0L) {
+            Loudness.put(videoId, stream.loudnessDb)
+            main.post { if (player.currentMediaItem?.mediaId == videoId) applyGain() }
+        }
         return spec.withStream(stream)
     }
 
@@ -162,6 +258,9 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         QueueStore.save(this, player)
+        fadeJob?.cancel()
+        fading?.release()
+        fading = null
         scope.cancel()
         equalizer?.release()
         equalizer = null
@@ -228,6 +327,7 @@ class PlaybackService : MediaLibraryService() {
             ) {
                 saveSoon()
             }
+            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) applyGain()
             if (events.containsAny(
                     Player.EVENT_MEDIA_METADATA_CHANGED,
                     Player.EVENT_MEDIA_ITEM_TRANSITION,

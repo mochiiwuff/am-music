@@ -34,6 +34,8 @@ class MusicRepository @Inject constructor() {
 
     suspend fun songCover(track: YtTrack): Result<String?> = YouTubeMusic.songCover(track)
 
+    suspend fun registerListen(videoId: String): Result<Unit> = YouTubeMusic.registerListen(videoId)
+
     suspend fun album(browseId: String): Result<YtAlbumPage> = YouTubeMusic.album(browseId)
 
     suspend fun playlist(playlistId: String): Result<YtPlaylistPage> = YouTubeMusic.playlist(playlistId)

@@ -7,6 +7,7 @@ import app.ammusic.data.MusicRepository
 import app.ammusic.data.SearchHistory
 import app.ammusic.data.lyrics.Lyrics
 import app.ammusic.data.lyrics.LyricsRepository
+import app.ammusic.data.library.LibraryRepository
 import app.ammusic.data.lyrics.Translation
 import app.ammusic.youtube.isFrench
 import app.ammusic.playback.PlayerController
@@ -37,8 +38,20 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val controller: PlayerController,
     private val lyricsRepository: LyricsRepository,
+    private val library: LibraryRepository,
 ) : ViewModel() {
     val state = controller.state
+    val sleep = controller.sleep
+
+    fun sleepIn(minutes: Int?) = controller.sleepIn(minutes)
+
+    fun sleepAtEndOfTrack() = controller.sleepAtEndOfTrack()
+
+    fun saveQueue(title: String) {
+        val tracks = state.value.queue
+        if (tracks.isEmpty()) return
+        viewModelScope.launch { library.createPlaylist(title)?.let { id -> library.addAllToPlaylist(id, title, tracks) } }
+    }
 
     private val _lyrics = MutableStateFlow<Lyrics?>(null)
     val lyrics: StateFlow<Lyrics?> = _lyrics.asStateFlow()

@@ -29,3 +29,4 @@ data class BrowseRoute(val browseId: String, val params: String?, val title: Str
 @Serializable data class LibraryListRoute(val kind: String)
 @Serializable data object RecapRoute
 @Serializable data object EqualizerRoute
+@Serializable data class AddSongsRoute(val playlistId: String, val title: String)

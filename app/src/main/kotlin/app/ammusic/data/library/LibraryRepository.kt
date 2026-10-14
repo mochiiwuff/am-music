@@ -149,7 +149,7 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
 
     suspend fun isMine(playlistId: String): Boolean = dao.playlistRow(playlistId)?.kind == PlaylistKind.Mine
 
-    fun addToPlaylist(playlistId: String, track: YtTrack) = scope.launch {
+    fun addToPlaylist(playlistId: String, track: YtTrack, quiet: Boolean = false) = scope.launch {
         val playlist = dao.playlistRow(playlistId) ?: return@launch
         if (dao.countPlaylistTrack(playlistId, track.id) > 0) {
             notify(tr("Déjà dans « ${playlist.title} »", "Already in “${playlist.title}”"))
@@ -160,13 +160,13 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         refreshSummary(playlistId)
         val added = tr("Ajouté à « ${playlist.title} »", "Added to “${playlist.title}”")
         if (isLocal(playlistId)) {
-            notify(added)
+            if (!quiet) notify(added)
             return@launch
         }
         twice { YouTubeMusic.addToPlaylist(playlistId, track.id) }.fold(
             onSuccess = { setVideoId ->
                 if (setVideoId != null) dao.setSetVideoId(playlistId, track.id, setVideoId)
-                notify(added)
+                if (!quiet) notify(added)
                 if (now() - (refreshedAt[playlistId] ?: 0L) > RefreshEveryMs) refreshPlaylist(playlistId)
             },
             onFailure = { error ->
@@ -176,6 +176,34 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
                 notify(tr("L'ajout à « ${playlist.title} » a échoué", "Could not add to “${playlist.title}”"), failed = true)
             },
         )
+    }
+
+    fun addAllToPlaylist(playlistId: String, title: String, tracks: List<YtTrack>) = scope.launch {
+        val start = now()
+        val fresh = tracks.distinctBy { it.id }.filter { dao.countPlaylistTrack(playlistId, it.id) == 0 }
+        fresh.forEachIndexed { index, track ->
+            remember(track)
+            dao.insertPlaylistTrack(PlaylistTrackRow(playlistId, track.id, start + index))
+        }
+        refreshSummary(playlistId)
+        if (!isLocal(playlistId)) {
+            var failed = 0
+            for (track in fresh) {
+                twice { YouTubeMusic.addToPlaylist(playlistId, track.id) }.fold(
+                    onSuccess = { setVideoId -> if (setVideoId != null) dao.setSetVideoId(playlistId, track.id, setVideoId) },
+                    onFailure = {
+                        failed++
+                        dao.deletePlaylistTrack(playlistId, track.id)
+                    },
+                )
+            }
+            refreshSummary(playlistId)
+            if (failed > 0) {
+                notify(tr("$failed titres n'ont pas pu être ajoutés à « $title »", "$failed songs could not be added to “$title”"), failed = true)
+                return@launch
+            }
+        }
+        notify(tr("« $title » : ${songCount(fresh.size)}", "“$title”: ${songCount(fresh.size)}"))
     }
 
     fun removeFromPlaylist(playlistId: String, track: YtTrack) = scope.launch {
@@ -270,6 +298,8 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         delay(1_200)
         return call()
     }
+
+    fun announce(text: String) = notify(text)
 
     private fun notify(text: String, failed: Boolean = false) {
         _notices.tryEmit(LibraryNotice(text, failed))

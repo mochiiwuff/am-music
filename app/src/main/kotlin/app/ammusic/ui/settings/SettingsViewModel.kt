@@ -7,6 +7,9 @@ import app.ammusic.data.Settings
 import app.ammusic.data.UserSettings
 import app.ammusic.data.library.LibraryRepository
 import app.ammusic.data.downloads.DownloadRepository
+import app.ammusic.data.Backup
+import android.net.Uri
+import app.ammusic.youtube.tr
 import app.ammusic.playback.PlayerController
 import app.ammusic.playback.audioCacheBytes
 import app.ammusic.playback.clearAudioCache
@@ -26,6 +29,7 @@ class SettingsViewModel @Inject constructor(
     private val player: PlayerController,
     private val library: LibraryRepository,
     private val downloads: DownloadRepository,
+    private val backup: Backup,
 ) : ViewModel() {
     val settings = UserSettings.state
     val sleep = player.sleep
@@ -49,6 +53,28 @@ class SettingsViewModel @Inject constructor(
     fun clearPlays() = library.clearPlays()
 
     fun removeDownloads() = downloads.removeAll()
+
+    fun backupName() = backup.suggestedName()
+
+    fun exportTo(target: Uri) {
+        viewModelScope.launch {
+            backup.export(target).fold(
+                onSuccess = { library.announce(tr("Sauvegarde enregistrée", "Backup saved")) },
+                onFailure = { library.announce(tr("La sauvegarde a échoué", "Backup failed")) },
+            )
+        }
+    }
+
+    fun importFrom(source: Uri) {
+        viewModelScope.launch {
+            backup.import(source).fold(
+                onSuccess = { summary ->
+                    library.announce(tr("Restauré : ${summary.playlists} playlists, ${summary.liked} titres aimés", "Restored: ${summary.playlists} playlists, ${summary.liked} liked songs"))
+                },
+                onFailure = { library.announce(tr("Ce fichier n'a pas pu être lu", "This file could not be read")) },
+            )
+        }
+    }
 
     fun clearCache() {
         viewModelScope.launch {

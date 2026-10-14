@@ -1,5 +1,6 @@
 package app.ammusic.ui
 
+import androidx.activity.compose.BackHandler
 import app.ammusic.youtube.tr
 
 import androidx.compose.animation.core.spring
@@ -91,6 +92,7 @@ import app.ammusic.youtube.model.YtTrack
 import app.ammusic.ui.home.HomeScreen
 import app.ammusic.ui.library.LibraryScreen
 import app.ammusic.ui.library.RecapScreen
+import app.ammusic.ui.library.AddSongsScreen
 import app.ammusic.ui.search.SearchScreen
 import app.ammusic.ui.settings.SettingsScreen
 import app.ammusic.ui.settings.EqualizerScreen
@@ -147,6 +149,18 @@ fun AppRoot(
 
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + FloatingBarsHeight
     val openSettings = { nav.navigate(SettingsRoute) { launchSingleTop = true } }
+    val selectTab = { tab: Tab ->
+        currentTab = tab
+        nav.navigate(tab.route) {
+            popUpTo(nav.graph.id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+    val atOtherTabRoot = entry?.destination?.let { destination ->
+        !destination.hasRoute(HomeRoute::class) && Tab.entries.any { destination.hasRoute(it.route::class) }
+    } == true
+    BackHandler(enabled = atOtherTabRoot) { selectTab(Tab.Home) }
     val barsAway by animateFloatAsState(
         targetValue = if (entry?.destination?.hasRoute(LoginRoute::class) == true) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.9f, stiffness = 300f),
@@ -194,11 +208,12 @@ fun AppRoot(
             },
             track.albumId?.let { id ->
                 MenuAction(AmIcons.Album, tr("Voir l'album", "Go to album")) {
+                    sheet.collapse()
                     nav.navigate(CollectionRoute(true, id, track.album.orEmpty(), track.artists, track.thumbnail, "", RowCoverSize))
                 }
             },
             track.artistId?.let { id ->
-                MenuAction(AmIcons.Artist, tr("Voir l'artiste", "Go to artist")) { openArtist(id, track.artists.substringBefore(", ")) }
+                MenuAction(AmIcons.Artist, tr("Voir l'artiste", "Go to artist")) { sheet.collapse(); openArtist(id, track.artists.substringBefore(", ")) }
             },
             MenuAction(AmIcons.Share, tr("Partager", "Share")) {
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${track.id}")
@@ -222,8 +237,12 @@ fun AppRoot(
             playAll = playerViewModel::playAll,
             download = libraryViewModel::download,
             removeDownloads = libraryViewModel::removeDownloads,
+            addSongs = { id, title -> nav.navigate(AddSongsRoute(id, title)) },
             toggle = { playerViewModel.toggle() },
-            menu = { track, extras -> sheetRequest = MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras) },
+            menu = { track, extras ->
+                val (pinned, rest) = extras.partition { it.pinned }
+                sheetRequest = MenuRequest(track.title, track.artists, track.thumbnail, pinned + currentTrackActions(track) + rest)
+            },
             preview = { track, extras, from -> previewRequest = PreviewRequest(MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras), from) },
             sheet = { sheetRequest = it },
             prompt = { title, initial, thumbnail, onConfirm -> promptRequest = PromptRequest(title, initial, thumbnail, onConfirm) },
@@ -265,6 +284,12 @@ fun AppRoot(
                     composable<BrowseRoute> { screen { BrowseScreen() } }
                     composable<LibraryListRoute> { entry -> screen { LibraryListScreen(entry.toRoute<LibraryListRoute>().kind) } }
                     composable<RecapRoute> { screen { RecapScreen() } }
+                    composable<AddSongsRoute>(
+                        enterTransition = { slideInVertically(SlideSpec) { it } },
+                        popExitTransition = { slideOutVertically(SlideSpec) { it } },
+                    ) {
+                        AddSongsScreen()
+                    }
                     composable<LoginRoute>(
                         enterTransition = { slideInVertically(SlideSpec) { it } },
                         popExitTransition = { slideOutVertically(SlideSpec) { it } },
@@ -288,14 +313,7 @@ fun AppRoot(
 
             FloatingBars(
                 current = currentTab,
-                onSelect = { tab ->
-                    currentTab = tab
-                    nav.navigate(tab.route) {
-                        popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
+                onSelect = selectTab,
                 collapsed = collapsed,
                 onExpand = { collapsed = false },
                 player = player,

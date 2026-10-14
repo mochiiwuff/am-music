@@ -15,6 +15,7 @@ class AppActions(
     val playAll: (tracks: List<YtTrack>, index: Int, shuffle: Boolean?) -> Unit,
     val download: (List<YtTrack>) -> Unit,
     val removeDownloads: (Collection<String>) -> Unit,
+    val addSongs: (playlistId: String, title: String) -> Unit,
     val toggle: () -> Unit,
     val menu: (YtTrack, List<MenuAction>) -> Unit,
     val preview: (YtTrack, List<MenuAction>, Rect?) -> Unit,

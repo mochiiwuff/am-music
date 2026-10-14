@@ -225,6 +225,9 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                         )
                     }
                 }
+                if (state.editable && !editing) {
+                    item(key = "addSongs", contentType = "addSongs") { AddSongsRow { actions.addSongs(route.id, state.title) } }
+                }
                 itemsIndexed(shown, key = { _, track -> track.id }, contentType = { _, _ -> "track" }) { index, track ->
                     val play = { actions.playAll(state.tracks, index, null) }
                     if (editing) {
@@ -552,5 +555,23 @@ private fun EditRow(track: YtTrack, lifted: Boolean, handle: Modifier, modifier:
         Box(handle.size(48.dp), contentAlignment = Alignment.Center) {
             AmIcon(AmIcons.Grip, tint = colors.textSecondary, size = 22.dp)
         }
+    }
+}
+
+@Composable
+private fun AddSongsRow(onClick: () -> Unit) {
+    val colors = AmTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .pressable(scale = 0.98f, haptic = true, label = tr("Ajouter des titres", "Add songs"), onClick = onClick)
+            .hairlineBelow(colors.hairline, 80.dp)
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+            AmIcon(AmIcons.Plus, tint = colors.accent, size = 22.dp)
+        }
+        AmText(tr("Ajouter des titres", "Add songs"), color = colors.accent, modifier = Modifier.padding(start = 12.dp))
     }
 }

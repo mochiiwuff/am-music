@@ -18,6 +18,9 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -52,11 +55,31 @@ private data class PlusLine(val time: Long = 0, val duration: Long = 0, val text
 private data class PlusResponse(val lyrics: List<PlusLine> = emptyList())
 
 @Singleton
-class LyricsRepository @Inject constructor() {
+class LyricsRepository @Inject constructor(@param:ApplicationContext context: Context) {
+    private val kept = File(context.filesDir, "lyrics").apply { mkdirs() }
     private val client = OkHttpClient.Builder().callTimeout(12, TimeUnit.SECONDS).build()
     private val json = Json { ignoreUnknownKeys = true }
     private val cache = object : LinkedHashMap<String, Lyrics>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Lyrics>?) = size > 30
+    }
+
+    suspend fun keep(track: YtTrack) = withContext(Dispatchers.IO) {
+        val found = find(track, (track.durationSeconds ?: 0) * 1000L)
+        if (found == Lyrics.None) return@withContext
+        runCatching { File(kept, "${track.id}.json").writeText(json.encodeToString(StoredLyrics.serializer(), found.stored())) }
+            .onFailure { Log.w(Tag, "paroles non gardées : ${it.javaClass.simpleName}") }
+    }
+
+    fun isKept(trackId: String): Boolean = File(kept, "$trackId.json").exists()
+
+    fun forget(trackIds: Collection<String>) {
+        trackIds.forEach { File(kept, "$it.json").delete() }
+    }
+
+    private fun readKept(trackId: String): Lyrics? {
+        val file = File(kept, "$trackId.json")
+        if (!file.exists()) return null
+        return runCatching { json.decodeFromString(StoredLyrics.serializer(), file.readText()).lyrics() }.getOrNull()
     }
 
     private val translations = object : LinkedHashMap<String, Translation>(16, 0.75f, true) {
@@ -99,6 +122,10 @@ class LyricsRepository @Inject constructor() {
 
     suspend fun find(track: YtTrack, durationMs: Long): Lyrics = withContext(Dispatchers.IO) {
         synchronized(cache) { cache[track.id] }?.let { return@withContext it }
+        readKept(track.id)?.let { stored ->
+            synchronized(cache) { cache[track.id] = stored }
+            return@withContext stored
+        }
         val title = track.title.replace(TitleNoise, "").trim().ifEmpty { track.title }
         val artist = track.artists.substringBefore(", ")
         val seconds = (durationMs / 1000).toInt()
@@ -215,4 +242,25 @@ internal fun parseTranslation(body: String, expected: Int, target: String): Tran
     if (texts.size != expected) return null
     if (sources.isNotEmpty() && sources.count { it == target } * 2 > sources.size) return Translation(emptyList(), sameLanguage = true)
     return Translation(texts, sameLanguage = false)
+}
+
+@Serializable
+private data class StoredWord(val text: String, val startMs: Long, val endMs: Long)
+
+@Serializable
+private data class StoredLine(val startMs: Long, val text: String, val words: List<StoredWord> = emptyList())
+
+@Serializable
+private data class StoredLyrics(val plain: String? = null, val lines: List<StoredLine> = emptyList())
+
+private fun Lyrics.stored(): StoredLyrics = when (this) {
+    is Lyrics.Synced -> StoredLyrics(lines = lines.map { line -> StoredLine(line.startMs, line.text, line.words.map { StoredWord(it.text, it.startMs, it.endMs) }) })
+    is Lyrics.Plain -> StoredLyrics(plain = text)
+    Lyrics.None -> StoredLyrics()
+}
+
+private fun StoredLyrics.lyrics(): Lyrics = when {
+    lines.isNotEmpty() -> Lyrics.Synced(lines.map { line -> LyricLine(line.startMs, line.text, line.words.map { LyricWord(it.text, it.startMs, it.endMs) }) })
+    plain != null -> Lyrics.Plain(plain)
+    else -> Lyrics.None
 }

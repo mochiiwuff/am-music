@@ -21,6 +21,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -82,6 +83,7 @@ class PlayerController @Inject constructor(
     val positionMs: Long get() = player?.currentPosition ?: 0L
 
     init {
+        scope.launch { _sleep.collect { PlaybackFlags.stopAtEnd = it.endOfTrack } }
         scope.launch { runCatching { controller() } }
         scope.launch { library.likedIds.collect { player?.let(::publish) } }
     }
@@ -210,12 +212,13 @@ class PlayerController @Inject constructor(
             delay(minutes * 60_000L)
             val player = player
             if (player != null && player.isPlaying) {
+                val start = player.volume
                 repeat(24) { step ->
-                    player.volume = 1f - (step + 1) / 24f
+                    player.volume = start * (1f - (step + 1) / 24f)
                     delay(150)
                 }
                 player.pause()
-                player.volume = 1f
+                player.volume = start
             }
             _sleep.value = SleepTimer()
         }
@@ -250,7 +253,14 @@ class PlayerController @Inject constructor(
         val done = listening ?: return
         listening = null
         val total = done.listenedMs + (done.resumedAt?.let { System.currentTimeMillis() - it } ?: 0L)
-        if (total >= CountAfterMs && !UserSettings.current.historyPaused) library.recordListen(done.track, done.startedAt, total)
+        if (total < CountAfterMs || UserSettings.current.historyPaused) return
+        library.recordListen(done.track, done.startedAt, total)
+        if (UserSettings.current.sendHistory) {
+            scope.launch {
+                withContext(Dispatchers.IO) { repository.registerListen(done.track.id) }
+                    .onFailure { Log.w("AmPlayback", "écoute non envoyée au compte : ${it.message?.take(120)}") }
+            }
+        }
     }
 
     private fun watchSegments(player: MediaController) {

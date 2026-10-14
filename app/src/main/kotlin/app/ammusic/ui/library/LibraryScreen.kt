@@ -29,6 +29,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -194,6 +200,17 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
             viewModel.createPlaylist(title) { id -> actions.open(YtPlaylist(id, title, "", null, editable = true), origin, ListCoverSize) }
         }
     }
+    var query by rememberSaveable { mutableStateOf("") }
+    val key = query.searchKey()
+    fun <T : YtItem> List<T>.matching(): List<T> = if (key.isEmpty()) this else filter { (it.title + " " + it.subtitle).searchKey().contains(key) }
+    val source: List<YtItem> = when (kind) {
+        LibraryKind.Liked -> liked
+        LibraryKind.Downloads -> downloaded
+        LibraryKind.History -> history
+        LibraryKind.Albums -> albums
+        LibraryKind.Artists -> artists
+        else -> playlists
+    }
     var settled by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(600)
@@ -210,22 +227,29 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
             }
         },
     ) {
+        if (source.size > 1 || query.isNotEmpty()) {
+            item(key = "filter", contentType = "filter") { FilterField(query, { query = it }, Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp, bottom = 10.dp)) }
+        }
+        if (key.isNotEmpty() && source.matching().isEmpty()) {
+            item(key = "noMatch") { EmptyState(AmIcons.Search, tr("Aucun résultat", "No results"), text = tr("Rien ne correspond à « $query ».", "Nothing matches “$query”.")) }
+            return@LargeTitleScreen
+        }
         when (kind) {
-            LibraryKind.Liked -> tracks(liked, origin, AmIcons.Heart, tr("Aucun titre aimé", "No liked songs"))
-            LibraryKind.Downloads -> downloads(downloaded, downloadBytes, origin, viewModel::removeDownloads)
-            LibraryKind.History -> tracks(history, origin, AmIcons.Clock, tr("Historique vide", "No history"))
+            LibraryKind.Liked -> tracks(liked.matching(), origin, AmIcons.Heart, tr("Aucun titre aimé", "No liked songs"))
+            LibraryKind.Downloads -> downloads(downloaded.matching(), downloadBytes, origin, viewModel::removeDownloads)
+            LibraryKind.History -> tracks(history.matching(), origin, AmIcons.Clock, tr("Historique vide", "No history"))
             LibraryKind.Albums -> {
                 if (albums.isEmpty()) item(key = "empty") { EmptyState(AmIcons.Album, tr("Aucun album", "No albums")) }
                 item(key = "top") { Spacer(Modifier.height(12.dp)) }
-                tileGrid(albums, origin)
+                tileGrid(albums.matching(), origin)
             }
             LibraryKind.Artists -> {
                 if (artists.isEmpty()) item(key = "empty") { EmptyState(AmIcons.Artist, tr("Aucun artiste suivi", "No followed artists")) }
-                rows(artists, origin)
+                rows(artists.matching(), origin)
             }
             else -> {
-                item(key = "new", contentType = "new") { NewPlaylistRow(newPlaylist, Modifier.cascade(0, enabled = !settled)) }
-                itemsIndexed(playlists, key = { _, playlist -> playlist.key }, contentType = { _, _ -> "playlist" }) { index, playlist ->
+                if (key.isEmpty()) item(key = "new", contentType = "new") { NewPlaylistRow(newPlaylist, Modifier.cascade(0, enabled = !settled)) }
+                itemsIndexed(playlists.matching(), key = { _, playlist -> playlist.key }, contentType = { _, _ -> "playlist" }) { index, playlist ->
                     PlaylistRow(playlist, origin, Modifier.animateItem().cascade(index + 1, enabled = !settled))
                 }
             }
@@ -377,5 +401,43 @@ fun storageSize(bytes: Long): String {
     return when {
         megabytes >= 1024f -> "${"%.1f".format(megabytes / 1024f)}" + tr(" Go", " GB")
         else -> "${megabytes.toInt()}" + tr(" Mo", " MB")
+    }
+}
+
+private val Marks = Regex("\\p{M}+")
+
+private fun String.searchKey(): String =
+    Marks.replace(java.text.Normalizer.normalize(this, java.text.Normalizer.Form.NFD), "").lowercase().trim()
+
+@Composable
+internal fun FilterField(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = tr("Rechercher", "Search")) {
+    val colors = AmTheme.colors
+    val focus = LocalFocusManager.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(colors.text.copy(alpha = 0.08f))
+            .padding(start = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AmIcon(AmIcons.Search, tint = colors.textSecondary, size = 18.dp)
+        Box(Modifier.padding(start = 8.dp).weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) AmText(placeholder, color = colors.textTertiary, maxLines = 1)
+            BasicTextField(
+                value = query,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = AmTheme.type.body.copy(color = colors.text),
+                cursorBrush = SolidColor(colors.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) {
+            IconButton(AmIcons.Close, label = tr("Effacer", "Clear"), onClick = { onChange("") }, tint = colors.textSecondary, iconSize = 16.dp)
+        }
     }
 }

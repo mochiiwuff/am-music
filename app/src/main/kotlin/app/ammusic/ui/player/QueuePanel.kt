@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -67,6 +68,7 @@ fun QueuePanel(
     onPlayAt: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     onRemove: (Int) -> Unit,
+    onSave: () -> Unit,
 ) {
     val visible by remember { derivedStateOf { progress() > 0f } }
     if (!visible) return
@@ -88,7 +90,21 @@ fun QueuePanel(
             }
             IconButton(AmIcons.ChevronDown, label = tr("Fermer la file d'attente", "Close queue"), onClick = onClose, tint = Color.White)
         }
-        AmText(tr("File d'attente", "Queue"), style = AmTheme.type.section, color = Color.White, modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp))
+        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            AmText(tr("File d'attente", "Queue"), style = AmTheme.type.section, color = Color.White, modifier = Modifier.weight(1f))
+            Row(
+                Modifier
+                    .height(34.dp)
+                    .pressable(scale = 0.94f, haptic = true, label = tr("Enregistrer en playlist", "Save as playlist"), onClick = onSave)
+                    .clip(CircleShape)
+                    .background(Color(0x26FFFFFF))
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AmIcon(AmIcons.Plus, tint = Color.White, size = 16.dp)
+                AmText(tr("Enregistrer", "Save"), style = AmTheme.type.subhead, color = Color.White, modifier = Modifier.padding(start = 6.dp))
+            }
+        }
 
         var tracks by remember { mutableStateOf(state.queue) }
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = state.index)

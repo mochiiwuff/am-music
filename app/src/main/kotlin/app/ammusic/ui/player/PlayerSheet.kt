@@ -86,6 +86,12 @@ import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.Cover
 import app.ammusic.ui.components.pressable
+import app.ammusic.ui.components.LocalActions
+import app.ammusic.ui.components.MenuAction
+import app.ammusic.ui.components.MenuRequest
+import app.ammusic.ui.components.IconButton
+import app.ammusic.playback.SleepTimer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtTrack
 import kotlinx.coroutines.CoroutineScope
@@ -147,6 +153,7 @@ fun rememberPlayerSheetState(): PlayerSheetState {
 @Composable
 fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewModel) {
     val track = state.track ?: return
+    val actions = LocalActions.current
     val density = LocalDensity.current
     val colors = rememberPlayerColors(track.thumbnail)
     val queue = remember { Animatable(0f) }
@@ -232,6 +239,9 @@ fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewM
                     onPlayAt = player::playAt,
                     onMove = player::move,
                     onRemove = player::remove,
+                    onSave = {
+                        actions.prompt(tr("Enregistrer la file", "Save queue"), "", track.thumbnail) { title -> player.saveQueue(title) }
+                    },
                 )
                 LyricsPanel(
                     progress = { lyrics.value },
@@ -291,12 +301,16 @@ private fun PlayerContent(
     val accent = AmTheme.colors.accent
     val context = LocalContext.current
     val active = state.isPlaying || state.isLoading
+    val actions = LocalActions.current
+    val sleep by player.sleep.collectAsStateWithLifecycle()
+    val sleepMenu = { actions.sheet(sleepRequest(track, sleep, player)) }
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 28.dp)) {
         Box(
             Modifier.fillMaxWidth().height(48.dp).pressable(label = tr("Réduire le lecteur", "Minimize player"), onClick = onCollapse),
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(width = 38.dp, height = 5.dp).clip(CircleShape).background(Color(0x66FFFFFF)))
+            SleepBadge(sleep, onClick = sleepMenu, modifier = Modifier.align(Alignment.CenterEnd))
         }
         Spacer(Modifier.height(12.dp + artSpace))
 
@@ -314,6 +328,17 @@ private fun PlayerContent(
                     )
                 }
                 HeartButton(state.liked, player::toggleLike, tint = Color.White, likedTint = accent)
+                IconButton(
+                    icon = AmIcons.More,
+                    label = tr("Plus d'options", "More options"),
+                    onClick = {
+                        actions.menu(
+                            track,
+                            listOf(MenuAction(AmIcons.Moon, tr("Minuteur de sommeil", "Sleep timer"), detail = sleepText(sleep), pinned = true) { sleepMenu() }),
+                        )
+                    },
+                    tint = Color.White,
+                )
             }
 
             ProgressSection(track.id, state.isPlaying, state.durationMs, player)
@@ -632,5 +657,64 @@ internal fun SkipButton(forward: Boolean, label: String, enabled: Boolean, size:
                 triangle(12.8f + 8.6f * t, 1f - t, 1f - t)
             }
         }
+    }
+}
+
+@Composable
+private fun rememberNow(active: Boolean): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(active) {
+        while (active) {
+            now = System.currentTimeMillis()
+            delay(10_000)
+        }
+    }
+    return now
+}
+
+private fun sleepText(sleep: SleepTimer, now: Long = System.currentTimeMillis()): String? {
+    val end = sleep.endsAtMs
+    return when {
+        sleep.endOfTrack -> tr("Fin du titre", "End of song")
+        end != null -> "${((end - now + 59_999) / 60_000).coerceAtLeast(1)} min"
+        else -> null
+    }
+}
+
+private fun sleepRequest(track: YtTrack, sleep: SleepTimer, player: PlayerViewModel): MenuRequest {
+    val choices = listOf(15, 30, 45, 60).map { minutes ->
+        MenuAction(AmIcons.Moon, tr("Dans $minutes min", "In $minutes min")) { player.sleepIn(minutes) }
+    }
+    val end = MenuAction(AmIcons.Moon, tr("À la fin du titre", "When the song ends")) { player.sleepAtEndOfTrack() }
+    val off = MenuAction(AmIcons.Close, tr("Désactiver le minuteur", "Turn off timer"), destructive = true) { player.sleepIn(null) }
+    return MenuRequest(
+        title = tr("Minuteur de sommeil", "Sleep timer"),
+        subtitle = sleepText(sleep)?.let { tr("Arrêt : $it", "Stops: $it") } ?: tr("La musique s'arrête en douceur", "The music fades out"),
+        thumbnail = track.thumbnail,
+        actions = choices + end + if (sleep.active) listOf(off) else emptyList(),
+    )
+}
+
+@Composable
+private fun SleepBadge(sleep: SleepTimer, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shown by animateFloatAsState(if (sleep.active) 1f else 0f, spring(dampingRatio = 1f, stiffness = 380f), label = "sleepBadge")
+    if (shown == 0f && !sleep.active) return
+    val now = rememberNow(sleep.endsAtMs != null)
+    Row(
+        modifier
+            .graphicsLayer {
+                alpha = shown
+                scaleX = 0.8f + 0.2f * shown
+                scaleY = scaleX
+            }
+            .height(30.dp)
+            .pressable(scale = 0.94f, label = tr("Minuteur de sommeil", "Sleep timer"), onClick = onClick)
+            .clip(CircleShape)
+            .background(Color(0x26FFFFFF))
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AmIcon(AmIcons.Moon, tint = Color.White, size = 14.dp)
+        AmText(sleepText(sleep, now).orEmpty(), style = AmTheme.type.footnote, color = Color.White, modifier = Modifier.padding(start = 5.dp))
     }
 }

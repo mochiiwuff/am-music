@@ -50,6 +50,7 @@ class MenuAction(
     val destructive: Boolean = false,
     val detail: String? = null,
     val artwork: MenuArtwork? = null,
+    val pinned: Boolean = false,
     val onClick: () -> Unit,
 )
 

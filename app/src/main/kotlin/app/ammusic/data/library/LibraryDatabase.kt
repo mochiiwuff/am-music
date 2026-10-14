@@ -14,8 +14,10 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Upsert
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.Flow
 
+@Serializable
 @Entity(tableName = "tracks")
 data class TrackRow(
     @PrimaryKey val id: String,
@@ -28,12 +30,15 @@ data class TrackRow(
     val albumId: String?,
 )
 
+@Serializable
 @Entity(tableName = "liked")
 data class LikedRow(@PrimaryKey val trackId: String, val addedAt: Long, val local: Boolean)
 
+@Serializable
 @Entity(tableName = "history")
 data class HistoryRow(@PrimaryKey val trackId: String, val playedAt: Long)
 
+@Serializable
 @Entity(tableName = "albums")
 data class AlbumRow(
     @PrimaryKey val id: String,
@@ -47,9 +52,11 @@ data class AlbumRow(
     val local: Boolean,
 )
 
+@Serializable
 @Entity(tableName = "artists")
 data class ArtistRow(@PrimaryKey val id: String, val name: String, val thumbnail: String?, val addedAt: Long, val local: Boolean)
 
+@Serializable
 @Entity(tableName = "playlists")
 data class PlaylistRow(
     @PrimaryKey val id: String,
@@ -68,6 +75,7 @@ object PlaylistKind {
     const val Saved = 2
 }
 
+@Serializable
 @Entity(tableName = "playlist_tracks", primaryKeys = ["playlistId", "trackId"])
 data class PlaylistTrackRow(val playlistId: String, val trackId: String, val position: Long, val setVideoId: String? = null)
 
@@ -84,6 +92,7 @@ object DownloadState {
     const val Failed = 3
 }
 
+@Serializable
 @Entity(tableName = "plays", indices = [Index("startedAt")])
 data class PlayRow(@PrimaryKey(autoGenerate = true) val id: Long = 0, val trackId: String, val startedAt: Long, val listenedMs: Long)
 
@@ -302,6 +311,45 @@ abstract class LibraryDao {
 
     @Query("DELETE FROM plays")
     abstract suspend fun clearPlays()
+
+    @Query("SELECT * FROM tracks")
+    abstract suspend fun allTracks(): List<TrackRow>
+
+    @Query("SELECT * FROM liked WHERE local = 1")
+    abstract suspend fun localLiked(): List<LikedRow>
+
+    @Query("SELECT * FROM albums WHERE local = 1")
+    abstract suspend fun localAlbums(): List<AlbumRow>
+
+    @Query("SELECT * FROM artists WHERE local = 1")
+    abstract suspend fun localArtists(): List<ArtistRow>
+
+    @Query("SELECT * FROM playlists WHERE kind = 0")
+    abstract suspend fun localPlaylists(): List<PlaylistRow>
+
+    @Query("SELECT playlist_tracks.* FROM playlist_tracks JOIN playlists ON playlists.id = playlist_tracks.playlistId WHERE playlists.kind = 0")
+    abstract suspend fun localPlaylistTracks(): List<PlaylistTrackRow>
+
+    @Query("SELECT * FROM history")
+    abstract suspend fun allHistory(): List<HistoryRow>
+
+    @Query("SELECT * FROM plays")
+    abstract suspend fun allPlays(): List<PlayRow>
+
+    @Query("SELECT COUNT(*) FROM plays WHERE trackId = :trackId AND startedAt = :startedAt")
+    abstract suspend fun countPlay(trackId: String, startedAt: Long): Int
+
+    @Upsert
+    abstract suspend fun upsertLiked(rows: List<LikedRow>)
+
+    @Upsert
+    abstract suspend fun upsertAlbums(rows: List<AlbumRow>)
+
+    @Upsert
+    abstract suspend fun upsertArtists(rows: List<ArtistRow>)
+
+    @Upsert
+    abstract suspend fun upsertHistoryRows(rows: List<HistoryRow>)
 
     @Transaction
     open suspend fun deletePlaylist(id: String) {

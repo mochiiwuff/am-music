@@ -9,6 +9,8 @@ import app.ammusic.data.library.DownloadState
 import app.ammusic.data.library.LibraryRepository
 import app.ammusic.data.library.toRow
 import app.ammusic.data.library.toTrack
+import app.ammusic.data.lyrics.LyricsRepository
+import app.ammusic.playback.Loudness
 import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.model.thumbnailAt
@@ -53,6 +55,7 @@ private class Rejected(code: Int) : IOException("réponse $code")
 class DownloadRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     library: LibraryRepository,
+    private val lyrics: LyricsRepository,
 ) {
     private val dao = library.dao
     private val dir = File(context.filesDir, "downloads").apply { mkdirs() }
@@ -73,11 +76,13 @@ class DownloadRepository @Inject constructor(
     val bytes: StateFlow<Long> = _bytes.asStateFlow()
 
     init {
+        Loudness.init(context)
         scope.launch {
             completed.addAll(dao.completedDownloadIds().filter { File(dir, fileName(it)).exists() })
             dao.requeueDownloads()
             measure()
             if (dao.pendingDownloadCount() > 0) start()
+            completed.filterNot(lyrics::isKept).forEach { id -> dao.track(id)?.toTrack()?.let { runCatching { lyrics.keep(it) } } }
         }
     }
 
@@ -98,6 +103,7 @@ class DownloadRepository @Inject constructor(
         if (trackIds.isEmpty()) return
         scope.launch {
             completed.removeAll(trackIds.toSet())
+            lyrics.forget(trackIds)
             trackIds.forEach { id ->
                 File(dir, fileName(id)).delete()
                 File(dir, "$id.part").delete()
@@ -110,6 +116,7 @@ class DownloadRepository @Inject constructor(
     fun removeAll() {
         scope.launch {
             completed.clear()
+            lyrics.forget(states.value.keys)
             dir.listFiles()?.forEach { it.delete() }
             dao.deleteDownloads(states.value.keys.toList())
             measure()
@@ -146,6 +153,7 @@ class DownloadRepository @Inject constructor(
                 completed += track.id
                 dao.setDownloadState(track.id, DownloadState.Done, size)
                 keepCover(track)
+                runCatching { lyrics.keep(track) }
                 done++
             } else {
                 dao.setDownloadState(track.id, DownloadState.Failed, 0L)
@@ -159,6 +167,7 @@ class DownloadRepository @Inject constructor(
         repeat(Attempts) { attempt ->
             try {
                 val stream = YouTubeMusic.streams.resolve(track.id, AudioQuality.High)
+                Loudness.put(track.id, stream.loudnessDb)
                 save(stream, part, onFraction)
                 val target = File(dir, fileName(track.id))
                 if (part.renameTo(target)) {

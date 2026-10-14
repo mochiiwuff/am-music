@@ -5,6 +5,8 @@ import app.ammusic.youtube.tr
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -74,6 +76,8 @@ private val LanguageCodes = listOf("", "fr", "en")
 private val LanguageLabels get() = listOf(tr("Système", "System"), "Français", "English")
 private val QualityLabels get() = listOf("Auto", tr("Haute", "High"), tr("Éco", "Saver"))
 private val SizeLabels get() = listOf(tr("Petit", "Small"), tr("Moyen", "Medium"), tr("Grand", "Large"))
+private val CrossfadeSeconds = listOf(0, 3, 6, 9, 12)
+private val CrossfadeLabels get() = listOf(tr("Non", "Off"), "3 s", "6 s", "9 s", "12 s")
 private val SleepMinutes = listOf(null, 15, 30, 60)
 private val SleepLabels get() = listOf(tr("Non", "Off"), "15 min", "30 min", "1 h")
 
@@ -134,6 +138,12 @@ fun SettingsScreen(
                 }
                 Divider()
                 Link(tr("Égaliseur", "Equalizer"), equalizerLabel(settings.eqPreset), onEqualizer)
+                Divider()
+                Toggle(tr("Volume égal entre les titres", "Even out volume between songs"), settings.normalizeVolume) { viewModel.update { copy(normalizeVolume = it) } }
+                Divider()
+                Choice(tr("Fondu enchaîné", "Crossfade"), CrossfadeLabels, CrossfadeSeconds.indexOf(settings.crossfadeSeconds).coerceAtLeast(0)) {
+                    viewModel.update { copy(crossfadeSeconds = CrossfadeSeconds[it]) }
+                }
             }
         }
 
@@ -170,8 +180,11 @@ fun SettingsScreen(
         item(key = "history") {
             Group(
                 header = tr("Historique", "History"),
+                footer = tr("Connecté, les titres écoutés plus de 30 s rejoignent l'historique YouTube Music et améliorent vos recommandations.", "When signed in, songs played for more than 30 s go to your YouTube Music history and improve your recommendations."),
             ) {
                 Toggle(tr("Mettre l'historique en pause", "Pause history"), settings.historyPaused) { viewModel.update { copy(historyPaused = it) } }
+                Divider()
+                Toggle(tr("Envoyer mes écoutes à mon compte", "Send my plays to my account"), settings.sendHistory) { viewModel.update { copy(sendHistory = it) } }
                 Divider()
                 Action(tr("Effacer l'historique", "Clear history")) { viewModel.clearHistory() }
                 Divider()
@@ -200,6 +213,19 @@ fun SettingsScreen(
                 Value(tr("Espace utilisé", "Space used"), megabytes((cacheBytes / (1024 * 1024)).toInt()))
                 Divider()
                 Action(tr("Vider le cache", "Clear cache")) { viewModel.clearCache() }
+            }
+        }
+
+        item(key = "backup") {
+            val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(viewModel::exportTo) }
+            val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importFrom) }
+            Group(
+                header = tr("Sauvegarde", "Backup"),
+                footer = tr("Playlists de ce téléphone, titres aimés sans compte, historique, récap et réglages.", "Playlists on this phone, liked songs without an account, history, recap and settings."),
+            ) {
+                Action(tr("Exporter dans un fichier", "Export to a file")) { exporter.launch(viewModel.backupName()) }
+                Divider()
+                Action(tr("Restaurer une sauvegarde", "Restore a backup")) { importer.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }
             }
         }
 

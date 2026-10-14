@@ -27,6 +27,7 @@ import com.metrolist.innertube.models.BrowseEndpoint
 import com.metrolist.innertube.models.PlaylistItem
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.WatchEndpoint
+import com.metrolist.innertube.models.YouTubeClient
 import com.metrolist.innertube.models.YTItem
 import com.metrolist.innertube.utils.completed
 import com.metrolist.innertube.utils.parseCookieString
@@ -220,6 +221,14 @@ object YouTubeMusic {
 
     suspend fun removeFromPlaylist(playlistId: String, videoId: String, setVideoId: String): Result<Unit> = io {
         YouTube.removeFromPlaylist(playlistId, videoId, setVideoId).mapCatching { response -> response.acceptedBody() }.map { }
+    }
+
+    suspend fun registerListen(videoId: String): Result<Unit> = io {
+        if (!isSignedIn) return@io Result.success(Unit)
+        YouTube.player(videoId, client = YouTubeClient.WEB_REMIX).mapCatching { response ->
+            val url = response.playbackTracking?.videostatsPlaybackUrl?.baseUrl ?: error("aucune adresse de suivi")
+            YouTube.registerPlayback(null, url).getOrThrow()
+        }.map { }
     }
 
     suspend fun movePlaylistTrack(playlistId: String, setVideoId: String, beforeSetVideoId: String?): Result<Unit> = io {

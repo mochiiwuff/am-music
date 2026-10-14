@@ -8,11 +8,13 @@ import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.appLanguage
 import app.ammusic.youtube.isFrench
 import app.ammusic.youtube.stream.AudioQuality
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
+@Serializable
 data class Settings(
     val theme: Int = 0,
     val accent: Int = 0,
@@ -29,6 +31,9 @@ data class Settings(
     val eqPreset: String = "off",
     val eqCustom: List<Int> = List(5) { 0 },
     val translateLyrics: Boolean = false,
+    val normalizeVolume: Boolean = true,
+    val sendHistory: Boolean = true,
+    val crossfadeSeconds: Int = 0,
 )
 
 val CacheChoicesMb = listOf(256, 512, 1024, 2048)
@@ -59,6 +64,9 @@ object UserSettings {
             eqPreset = stored.getString("eqPreset", "off") ?: "off",
             eqCustom = stored.getString("eqCustom", null)?.split(",")?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size == 5 } ?: List(5) { 0 },
             translateLyrics = stored.getBoolean("translateLyrics", false),
+            normalizeVolume = stored.getBoolean("normalizeVolume", true),
+            sendHistory = stored.getBoolean("sendHistory", true),
+            crossfadeSeconds = stored.getInt("crossfadeSeconds", 0).coerceIn(0, 12),
         )
         appLanguage = current.language.ifEmpty { null }
     }
@@ -84,6 +92,9 @@ object UserSettings {
             putString("eqPreset", next.eqPreset)
             putString("eqCustom", next.eqCustom.joinToString(","))
             putBoolean("translateLyrics", next.translateLyrics)
+            putBoolean("normalizeVolume", next.normalizeVolume)
+            putBoolean("sendHistory", next.sendHistory)
+            putInt("crossfadeSeconds", next.crossfadeSeconds)
         }
         if (languageChanged) {
             appLanguage = next.language.ifEmpty { null }
