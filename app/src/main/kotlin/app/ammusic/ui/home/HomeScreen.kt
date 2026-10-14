@@ -75,7 +75,7 @@ fun HomeScreen(onProfile: () -> Unit, viewModel: HomeViewModel = hiltViewModel()
             HomeState.Error -> item(key = "error") {
                 ErrorState(
                     title = tr("Accueil indisponible", "Home unavailable"),
-                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
+                    message = tr("Vérifiez votre connexion.", "Check your connection."),
                     onRetry = viewModel::load,
                 )
             }

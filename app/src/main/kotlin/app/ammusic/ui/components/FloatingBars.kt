@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
@@ -130,7 +132,7 @@ private fun TabBar(
         animationSpec = spring(dampingRatio = 0.76f, stiffness = 420f),
         label = "tabPill",
     )
-    Box(Modifier.fillMaxSize().glass(CircleShape)) {
+    Box(Modifier.fillMaxSize().barShadow().glass(CircleShape)) {
         Row(
             Modifier
                 .fillMaxSize()
@@ -178,6 +180,7 @@ private fun MiniPlayer(player: PlayerState, sheet: PlayerSheetState, onTogglePla
         modifier = Modifier
             .fillMaxSize()
             .onGloballyPositioned { sheet.miniBounds = it.boundsInRoot() }
+            .barShadow()
             .glass(CircleShape)
             .draggable(
                 state = rememberDraggableState { sheet.dragBy(-it) },
@@ -223,4 +226,15 @@ private fun MiniPlayer(player: PlayerState, sheet: PlayerSheetState, onTogglePla
             )
         }
     }
+}
+
+@Composable
+private fun Modifier.barShadow(): Modifier {
+    val dark = AmTheme.colors.isDark
+    return shadow(
+        elevation = if (dark) 10.dp else 18.dp,
+        shape = CircleShape,
+        ambientColor = Color.Black.copy(alpha = if (dark) 0.3f else 0.12f),
+        spotColor = Color.Black.copy(alpha = if (dark) 0.4f else 0.18f),
+    )
 }

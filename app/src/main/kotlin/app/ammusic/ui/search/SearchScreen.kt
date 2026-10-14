@@ -127,7 +127,7 @@ fun SearchScreen(onProfile: () -> Unit, viewModel: SearchViewModel = hiltViewMod
             results is SearchResults.Error -> item(key = "error") {
                 ErrorState(
                     title = tr("Recherche impossible", "Search failed"),
-                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
+                    message = tr("Vérifiez votre connexion.", "Check your connection."),
                     onRetry = { viewModel.submit() },
                 )
             }

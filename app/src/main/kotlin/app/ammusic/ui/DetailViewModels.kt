@@ -83,7 +83,7 @@ class CollectionViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         title = playlist?.title ?: it.title,
-                        subtitle = if (local) tr("Sur ce téléphone", "On this phone") else tr("Votre playlist", "Your playlist"),
+                        subtitle = "",
                         thumbnail = if (playlist != null) playlist.thumbnail else it.thumbnail,
                         tracks = tracks,
                         editable = true,

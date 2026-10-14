@@ -69,6 +69,7 @@ import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.Cover
 import app.ammusic.ui.components.ErrorState
+import app.ammusic.ui.components.EmptyState
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.ItemCarousel
 import app.ammusic.ui.components.ItemRow
@@ -166,7 +167,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
             LoadStatus.Error -> item(key = "error") {
                 ErrorState(
                     title = if (state.isAlbum) tr("Album indisponible", "Album unavailable") else tr("Playlist indisponible", "Playlist unavailable"),
-                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
+                    message = tr("Vérifiez votre connexion.", "Check your connection."),
                     onRetry = viewModel::load,
                 )
             }
@@ -212,19 +213,7 @@ fun CollectionScreen(viewModel: CollectionViewModel = hiltViewModel()) {
                 }
                 if (state.tracks.isEmpty() && state.editable) {
                     item(key = "empty", contentType = "empty") {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            AmText(tr("Cette playlist est vide", "This playlist is empty"), style = AmTheme.type.headline, textAlign = TextAlign.Center)
-                            AmText(
-                                text = tr(
-                                    "Touchez « ⋯ » à côté d'un titre, puis « Ajouter à une playlist ».",
-                                    "Tap “⋯” next to a song, then “Add to a playlist”.",
-                                ),
-                                style = AmTheme.type.subhead,
-                                color = AmTheme.colors.textSecondary,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
+                        EmptyState(AmIcons.Playlist, tr("Cette playlist est vide", "This playlist is empty"))
                     }
                 } else {
                     item(key = "footer", contentType = "text") {
@@ -348,14 +337,14 @@ private fun CollectionHeader(
                 modifier = Modifier.cascade(4, animate).then(open).padding(top = 3.dp, bottom = 2.dp),
             )
         }
-        AmText(
-            text = listOfNotNull(kind, state.year?.toString(), songCount(state.tracks.size).takeIf { !state.isAlbum && state.tracks.isNotEmpty() })
-                .joinToString(" · ")
-                .uppercase(),
-            style = AmTheme.type.caption.copy(letterSpacing = 0.08.em, fontWeight = FontWeight.SemiBold),
-            color = colors.textSecondary,
-            modifier = Modifier.cascade(6, animate).padding(top = 6.dp),
-        )
+        if (state.isAlbum) {
+            AmText(
+                text = listOfNotNull(kind, state.year?.toString()).joinToString(" · ").uppercase(),
+                style = AmTheme.type.caption.copy(letterSpacing = 0.08.em, fontWeight = FontWeight.SemiBold),
+                color = colors.textSecondary,
+                modifier = Modifier.cascade(6, animate).padding(top = 6.dp),
+            )
+        }
         Spacer(Modifier.height(22.dp))
         Row(Modifier.cascade(8, animate), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val ready = state.tracks.isNotEmpty()
@@ -402,7 +391,7 @@ private fun AlbumTrackRow(index: Int, track: YtTrack, showArtists: Boolean, onCl
     Row(
         modifier
             .fillMaxWidth()
-            .pressable(scale = 0.98f, onLongClick = { actions.menu(track, emptyList()) }, onClick = onClick)
+            .pressable(scale = 0.98f, onLongClick = { actions.preview(track, emptyList(), null) }, onClick = onClick)
             .height(56.dp)
             .drawBehind {
                 val y = size.height - 0.5.dp.toPx()

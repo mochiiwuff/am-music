@@ -1,6 +1,7 @@
 package app.ammusic.ui.components
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import app.ammusic.youtube.model.YtAccount
@@ -14,6 +15,7 @@ class AppActions(
     val playAll: (tracks: List<YtTrack>, index: Int, shuffle: Boolean?) -> Unit,
     val toggle: () -> Unit,
     val menu: (YtTrack, List<MenuAction>) -> Unit,
+    val preview: (YtTrack, List<MenuAction>, Rect?) -> Unit,
     val sheet: (MenuRequest) -> Unit,
     val prompt: (title: String, initial: String, thumbnail: String?, onConfirm: (String) -> Unit) -> Unit,
     val openLibrary: (kind: String) -> Unit,

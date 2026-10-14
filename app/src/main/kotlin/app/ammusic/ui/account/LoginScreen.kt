@@ -108,7 +108,7 @@ fun LoginScreen(viewModel: AccountViewModel = hiltViewModel()) {
                 Column(Modifier.fillMaxSize().background(colors.background)) {
                     if (arrived) {
                         AmText(
-                            text = tr("Connexion réussie. Récupération de votre bibliothèque…", "Signed in. Fetching your library…"),
+                            text = tr("Connexion réussie", "Signed in"),
                             color = colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
                         )

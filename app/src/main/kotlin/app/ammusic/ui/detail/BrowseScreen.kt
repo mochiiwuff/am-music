@@ -49,7 +49,7 @@ fun BrowseScreen(viewModel: BrowseViewModel = hiltViewModel()) {
             state.status == LoadStatus.Error -> item(key = "error") {
                 ErrorState(
                     title = tr("Contenu indisponible", "Content unavailable"),
-                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
+                    message = tr("Vérifiez votre connexion.", "Check your connection."),
                     onRetry = viewModel::load,
                 )
             }

@@ -115,10 +115,6 @@ fun SettingsScreen(
         item(key = "playback") {
             Group(
                 header = tr("Lecture", "Playback"),
-                footer = tr(
-                    "« Haute » sonne mieux, « Éco » consomme moins de données. Le changement s'applique au titre suivant.",
-                    "“High” sounds better, “Saver” uses less data. The change applies from the next song.",
-                ),
             ) {
                 Choice(tr("Qualité en Wi-Fi", "Quality on Wi-Fi"), QualityLabels, settings.wifiQuality.ordinal) {
                     viewModel.update { copy(wifiQuality = AudioQuality.entries[it]) }
@@ -136,10 +132,7 @@ fun SettingsScreen(
 
         item(key = "skip") {
             Group(
-                footer = tr(
-                    "Saute les intros parlées et les passages sans musique des clips. L'appli interroge pour cela le service SponsorBlock, sans lui donner le titre exact.",
-                    "Skips spoken intros and non-music parts of music videos. The app asks the SponsorBlock service for this, without telling it the exact song.",
-                ),
+                footer = tr("Via SponsorBlock.", "Uses SponsorBlock."),
             ) {
                 Toggle(tr("Passer les passages sans musique", "Skip non-music parts"), settings.skipSegments) {
                     viewModel.update { copy(skipSegments = it) }
@@ -170,7 +163,6 @@ fun SettingsScreen(
         item(key = "history") {
             Group(
                 header = tr("Historique", "History"),
-                footer = tr("En pause, les titres écoutés ne sont plus ajoutés à l'historique.", "While paused, songs you play are no longer added to your history."),
             ) {
                 Toggle(tr("Mettre l'historique en pause", "Pause history"), settings.historyPaused) { viewModel.update { copy(historyPaused = it) } }
                 Divider()
@@ -181,10 +173,6 @@ fun SettingsScreen(
         item(key = "storage") {
             Group(
                 header = tr("Stockage", "Storage"),
-                footer = tr(
-                    "Le cache garde les titres déjà écoutés pour les relancer plus vite. Une nouvelle limite s'applique au prochain démarrage de l'appli.",
-                    "The cache keeps songs you already played so they start faster. A new limit applies the next time the app starts.",
-                ),
             ) {
                 Choice(tr("Limite du cache audio", "Audio cache limit"), CacheChoicesMb.map(::megabytes), CacheChoicesMb.indexOf(settings.cacheMb).coerceAtLeast(0)) {
                     viewModel.update { copy(cacheMb = CacheChoicesMb[it]) }
@@ -225,10 +213,9 @@ private fun sleepStatus(sleep: SleepTimer): String? {
     }
     val end = sleep.endsAtMs
     return when {
-        sleep.endOfTrack -> tr("La musique s'arrêtera à la fin de ce titre.", "The music will stop when this song ends.")
         end != null -> {
             val minutes = ((end - now.longValue + 59_999) / 60_000).coerceAtLeast(1)
-            tr("La musique s'arrêtera en douceur dans $minutes min.", "The music will fade out in $minutes min.")
+            tr("Arrêt dans $minutes min", "Stops in $minutes min")
         }
         else -> null
     }
@@ -421,7 +408,7 @@ private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
             AmText(account?.name ?: tr("Se connecter", "Sign in"), style = AmTheme.type.section.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
             AmText(
                 text = when {
-                    account == null -> tr("Vos titres aimés, playlists et recommandations YouTube Music.", "Your YouTube Music liked songs, playlists and recommendations.")
+                    account == null -> tr("Compte YouTube Music", "YouTube Music account")
                     else -> account.email ?: tr("Compte YouTube Music", "YouTube Music account")
                 },
                 style = AmTheme.type.footnote,

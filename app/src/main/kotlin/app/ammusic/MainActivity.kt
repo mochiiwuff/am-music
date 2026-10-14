@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.animation.DecelerateInterpolator
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -29,6 +30,12 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 31) {
+            splashScreen.setOnExitAnimationListener { splash ->
+                splash.iconView?.animate()?.scaleX(1.18f)?.scaleY(1.18f)?.setDuration(260)?.setInterpolator(DecelerateInterpolator(2f))?.start()
+                splash.animate().alpha(0f).setStartDelay(60).setDuration(240).withEndAction { splash.remove() }.start()
+            }
+        }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {}.launch(Manifest.permission.POST_NOTIFICATIONS)
         }

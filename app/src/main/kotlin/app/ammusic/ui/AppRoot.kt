@@ -67,6 +67,8 @@ import app.ammusic.ui.components.RowCoverSize
 import app.ammusic.ui.components.Tab
 import app.ammusic.ui.components.MenuRequest
 import app.ammusic.ui.components.MenuSheet
+import app.ammusic.ui.components.ContextMenu
+import app.ammusic.ui.components.PreviewRequest
 import app.ammusic.ui.components.PromptRequest
 import app.ammusic.ui.components.TextPrompt
 import app.ammusic.ui.account.LoginScreen
@@ -146,6 +148,7 @@ fun AppRoot(
         label = "barsAway",
     )
     var sheetRequest by remember { mutableStateOf<MenuRequest?>(null) }
+    var previewRequest by remember { mutableStateOf<PreviewRequest?>(null) }
     var promptRequest by remember { mutableStateOf<PromptRequest?>(null) }
     val context = LocalContext.current
     val libraryViewModel: LibraryViewModel = hiltViewModel()
@@ -207,6 +210,7 @@ fun AppRoot(
             playAll = playerViewModel::playAll,
             toggle = { playerViewModel.toggle() },
             menu = { track, extras -> sheetRequest = MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras) },
+            preview = { track, extras, from -> previewRequest = PreviewRequest(MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras), from) },
             sheet = { sheetRequest = it },
             prompt = { title, initial, thumbnail, onConfirm -> promptRequest = PromptRequest(title, initial, thumbnail, onConfirm) },
             openLibrary = { kind -> nav.navigate(LibraryListRoute(kind)) },
@@ -284,6 +288,7 @@ fun AppRoot(
 
             if (sheet.isOpen) PlayerSheet(sheet, player, playerViewModel)
 
+            ContextMenu(previewRequest, onDismiss = { previewRequest = null })
             MenuSheet(sheetRequest, onDismiss = { sheetRequest = null })
             TextPrompt(promptRequest, onDismiss = { promptRequest = null })
             NoticeHost(libraryViewModel.notices, Modifier.align(Alignment.TopCenter))

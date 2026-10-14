@@ -39,6 +39,7 @@ import app.ammusic.ui.components.AmIcon
 import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.Cover
+import app.ammusic.ui.components.EmptyState
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.ItemRow
 import app.ammusic.ui.components.ItemTile
@@ -89,7 +90,7 @@ fun LibraryScreen(onProfile: () -> Unit, viewModel: LibraryViewModel = hiltViewM
             tileGrid(recent, "library")
         } else {
             item(key = "empty", contentType = "text") {
-                Hint(tr("Votre bibliothèque est vide. Touchez « + » en haut d'un album, d'une playlist ou d'un artiste pour le retrouver ici.", "Your library is empty. Tap “+” at the top of an album, playlist or artist to find it here."))
+                EmptyState(AmIcons.Library, tr("Bibliothèque vide", "Your library is empty"), text = tr("Ajoutez des albums, des playlists ou des artistes.", "Add albums, playlists or artists."))
             }
         }
     }
@@ -131,9 +132,9 @@ private fun GuestCard(onConnect: () -> Unit) {
             .background(colors.surface)
             .padding(18.dp),
     ) {
-        AmText(tr("Retrouvez votre musique", "Bring your music"), style = AmTheme.type.headline)
+        AmText(tr("Compte YouTube Music", "YouTube Music account"), style = AmTheme.type.headline)
         AmText(
-            text = tr("Connectez votre compte YouTube Music pour retrouver vos titres aimés, vos playlists et des recommandations faites pour vous.", "Connect your YouTube Music account to get your liked songs, your playlists and recommendations made for you."),
+            text = tr("Connectez-vous pour retrouver votre bibliothèque.", "Sign in to get your library."),
             style = AmTheme.type.subhead,
             color = colors.textSecondary,
             modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
@@ -150,11 +151,6 @@ private fun GuestCard(onConnect: () -> Unit) {
             AmText(tr("Se connecter", "Sign in"), style = AmTheme.type.headline, color = Color.White)
         }
     }
-}
-
-@Composable
-private fun Hint(text: String) {
-    AmText(text, style = AmTheme.type.subhead, color = AmTheme.colors.textSecondary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 28.dp))
 }
 
 private fun LazyListScope.tileGrid(items: List<YtItem>, origin: String) {
@@ -204,26 +200,21 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
         },
     ) {
         when (kind) {
-            LibraryKind.Liked -> tracks(liked, origin, tr("Touchez le cœur du lecteur pour garder un titre ici.", "Tap the heart in the player to keep a song here."))
-            LibraryKind.History -> tracks(history, origin, tr("Les titres que vous écoutez apparaîtront ici.", "Songs you listen to will show up here."))
+            LibraryKind.Liked -> tracks(liked, origin, AmIcons.Heart, tr("Aucun titre aimé", "No liked songs"))
+            LibraryKind.History -> tracks(history, origin, AmIcons.Clock, tr("Historique vide", "No history"))
             LibraryKind.Albums -> {
-                if (albums.isEmpty()) item(key = "empty") { Hint(tr("Touchez « + » en haut d'un album pour le garder ici.", "Tap “+” at the top of an album to keep it here.")) }
+                if (albums.isEmpty()) item(key = "empty") { EmptyState(AmIcons.Album, tr("Aucun album", "No albums")) }
                 item(key = "top") { Spacer(Modifier.height(12.dp)) }
                 tileGrid(albums, origin)
             }
             LibraryKind.Artists -> {
-                if (artists.isEmpty()) item(key = "empty") { Hint(tr("Touchez « + » en haut de la page d'un artiste pour le suivre.", "Tap “+” at the top of an artist page to follow them.")) }
+                if (artists.isEmpty()) item(key = "empty") { EmptyState(AmIcons.Artist, tr("Aucun artiste suivi", "No followed artists")) }
                 rows(artists, origin)
             }
             else -> {
                 item(key = "new", contentType = "new") { NewPlaylistRow(newPlaylist, Modifier.cascade(0, enabled = !settled)) }
                 itemsIndexed(playlists, key = { _, playlist -> playlist.key }, contentType = { _, _ -> "playlist" }) { index, playlist ->
                     PlaylistRow(playlist, origin, Modifier.animateItem().cascade(index + 1, enabled = !settled))
-                }
-                if (playlists.isEmpty()) {
-                    item(key = "empty") {
-                        Hint(tr("Rangez vos titres préférés dans des playlists : elles apparaîtront ici.", "Collect your favourite songs in playlists: they will show up here."))
-                    }
                 }
             }
         }
@@ -236,9 +227,9 @@ private fun LazyListScope.rows(items: List<YtItem>, origin: String) {
     }
 }
 
-private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyHint: String) {
+private fun LazyListScope.tracks(tracks: List<YtTrack>, origin: String, emptyIcon: ImageVector, emptyTitle: String) {
     if (tracks.isEmpty()) {
-        item(key = "empty") { Hint(emptyHint) }
+        item(key = "empty") { EmptyState(emptyIcon, emptyTitle) }
         return
     }
     item(key = "buttons", contentType = "buttons") {

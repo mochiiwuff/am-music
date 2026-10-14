@@ -73,6 +73,14 @@ object AmIcons {
     private const val LoopArrows = "M17.2 4 L20 6.8 L17.2 9.6 M6.8 20 L4 17.2 L6.8 14.4"
     val Repeat by lazy { icon("Repeat", Part(Loop), Part(LoopArrows)) }
     val RepeatOne by lazy { icon("RepeatOne", Part(Loop), Part(LoopArrows), Part("M11.2 10.7 L12.5 9.9 V14.3", stroke = 1.5f)) }
+    val AudioOutput by lazy {
+        icon(
+            "AudioOutput",
+            Part("M5.9 15.4 A7.5 7.5 0 1 1 18.1 15.4"),
+            Part("M9.2 13.9 A4 4 0 1 1 14.8 13.9"),
+            Part("M12 15.4 L15.5 20.4 H8.5 Z", fill = true, stroke = 1.2f),
+        )
+    }
     val Queue by lazy {
         icon("Queue", Part("M4 6.5 H20"), Part("M4 11.5 H11.5"), Part("M4 16.5 H11.5"), Part("M15.4 11.6 L20.4 14.5 L15.4 17.4 Z", fill = true, stroke = 1.4f))
     }

@@ -112,7 +112,7 @@ fun ArtistScreen(viewModel: ArtistViewModel = hiltViewModel()) {
             state.status == LoadStatus.Error || page == null -> item(key = "error") {
                 ErrorState(
                     title = tr("Artiste indisponible", "Artist unavailable"),
-                    message = tr("Vérifiez votre connexion internet, puis réessayez.", "Check your internet connection, then try again."),
+                    message = tr("Vérifiez votre connexion.", "Check your connection."),
                     onRetry = viewModel::load,
                 )
             }

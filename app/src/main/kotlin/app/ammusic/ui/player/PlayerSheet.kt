@@ -68,12 +68,14 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.view.WindowCompat
 import app.ammusic.playback.PlayerState
 import app.ammusic.playback.RepeatMode
+import app.ammusic.playback.showAudioOutputs
 import app.ammusic.ui.PlayerViewModel
 import app.ammusic.ui.components.AmIcon
 import app.ammusic.ui.components.AmIcons
@@ -275,6 +277,7 @@ private fun PlayerContent(
     fade: () -> Float,
 ) {
     val accent = AmTheme.colors.accent
+    val context = LocalContext.current
     val active = state.isPlaying || state.isLoading
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 28.dp)) {
         Box(
@@ -324,6 +327,7 @@ private fun PlayerContent(
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
                 ToggleButton(AmIcons.Shuffle, tr("Lecture aléatoire", "Shuffle"), state.shuffle, player::toggleShuffle)
                 ToggleButton(AmIcons.Lyrics, tr("Paroles", "Lyrics"), false, onLyrics)
+                ToggleButton(AmIcons.AudioOutput, tr("Sortie audio", "Audio output"), false, { showAudioOutputs(context) })
                 ToggleButton(AmIcons.Queue, tr("File d'attente", "Queue"), false, onQueue)
                 ToggleButton(
                     icon = AmIcons.Repeat,

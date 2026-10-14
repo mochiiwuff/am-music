@@ -267,11 +267,12 @@ fun ItemRow(
     val actions = LocalActions.current
     val colors = AmTheme.colors
     val track = item as? YtTrack
+    val anchor = remember { Anchor() }
     val current = track != null && LocalNowPlaying.current.id == track.id
     Row(
         modifier.pressable(
             scale = 0.98f,
-            onLongClick = track?.let { { actions.menu(it, extras) } },
+            onLongClick = track?.let { { actions.preview(it, extras, anchor.bounds) } },
             onClick = onClick ?: { actions.open(item, origin, RowCoverSize) },
         ),
         verticalAlignment = Alignment.CenterVertically,
@@ -279,7 +280,7 @@ fun ItemRow(
         Box(contentAlignment = Alignment.Center) {
             Cover(
                 url = item.thumbnail,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(48.dp).anchor(anchor),
                 corner = 6.dp,
                 requestSize = RowCoverSize,
                 circle = item is YtArtist,
@@ -323,10 +324,11 @@ fun ItemCarousel(items: List<YtItem>, origin: String, modifier: Modifier = Modif
 fun ItemTile(item: YtItem, origin: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val track = item as? YtTrack
     val actions = LocalActions.current
-    Column(modifier.pressable(onLongClick = track?.let { { actions.menu(it, emptyList()) } }, onClick = onClick)) {
+    val anchor = remember { Anchor() }
+    Column(modifier.pressable(onLongClick = track?.let { { actions.preview(it, emptyList(), anchor.bounds) } }, onClick = onClick)) {
         Cover(
             url = item.thumbnail,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f).anchor(anchor),
             corner = 12.dp,
             elevated = true,
             circle = item is YtArtist,
@@ -368,6 +370,18 @@ fun RowsSkeleton(count: Int, modifier: Modifier = Modifier) {
                     Box(Modifier.fillMaxWidth(0.35f).height(12.dp).shimmer(RoundedCornerShape(6.dp)))
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun EmptyState(icon: ImageVector, title: String, modifier: Modifier = Modifier, text: String? = null) {
+    val colors = AmTheme.colors
+    Column(modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        AmIcon(icon, tint = colors.textTertiary, size = 40.dp)
+        AmText(title, style = AmTheme.type.headline, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
+        if (text != null) {
+            AmText(text, style = AmTheme.type.subhead, color = colors.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
