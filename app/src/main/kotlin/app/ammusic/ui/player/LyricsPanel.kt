@@ -321,7 +321,7 @@ private fun SyncedLyrics(
         LazyColumn(
             state = list,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 28.dp, bottom = bottomSpace),
+            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 28.dp, bottom = bottomSpace),
         ) {
             itemsIndexed(lines, key = { index, _ -> index }) { index, line ->
                 LyricRow(
@@ -375,14 +375,15 @@ private fun LyricRow(
             .fillMaxWidth()
             .graphicsLayer { translationY = shift() }
             .pressable(scale = 0.98f, label = tr("Aller à ce passage", "Jump to this line"), onClick = onClick)
-            .padding(vertical = 11.dp)
+            .padding(vertical = 1.dp)
             .graphicsLayer {
                 alpha = light
                 scaleX = size
                 scaleY = size
                 transformOrigin = TransformOrigin(0f, 0.5f)
             }
-            .blur(haze, BlurredEdgeTreatment.Unbounded),
+            .blur(haze, BlurredEdgeTreatment.Unbounded)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Column {
         when {
