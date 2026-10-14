@@ -47,6 +47,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -315,20 +319,20 @@ private fun PlayerContent(
             ProgressSection(track.id, state.isPlaying, state.durationMs, player)
 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
-                BigButton(AmIcons.Previous, tr("Titre précédent", "Previous song"), {
+                SkipButton(forward = false, label = tr("Titre précédent", "Previous song"), enabled = true, size = 72.dp, iconSize = 42.dp) {
                     SkipHint.mark(-1)
                     player.previous()
-                })
+                }
                 Box(
                     Modifier.size(84.dp).pressable(scale = 0.86f, haptic = true, label = if (active) "Pause" else tr("Lecture", "Play"), onClick = player::toggle),
                     contentAlignment = Alignment.Center,
                 ) {
                     PlayPauseIcon(playing = active, color = Color.White, size = 60.dp)
                 }
-                BigButton(AmIcons.Next, tr("Titre suivant", "Next song"), {
+                SkipButton(forward = true, label = tr("Titre suivant", "Next song"), enabled = state.hasNext, size = 72.dp, iconSize = 42.dp) {
                     SkipHint.mark(1)
                     player.next()
-                }, enabled = state.hasNext)
+                }
             }
 
             val (volume, setVolume) = rememberSystemVolume()
@@ -390,13 +394,6 @@ internal fun ProgressSection(trackId: String, playing: Boolean, durationMs: Long
             AmText(formatTime(shown), style = times, color = Soft)
             AmText(if (durationMs > 0) "-" + formatTime(durationMs - shown) else "--:--", style = times, color = Soft)
         }
-    }
-}
-
-@Composable
-private fun BigButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Box(Modifier.size(72.dp).pressable(scale = 0.82f, haptic = true, label = label, onClick = onClick), contentAlignment = Alignment.Center) {
-        AmIcon(icon, tint = if (enabled) Color.White else Color(0x59FFFFFF), size = 42.dp)
     }
 }
 
@@ -574,4 +571,66 @@ private fun SharedArtwork(
             },
         ),
     )
+}
+
+@Composable
+internal fun SkipButton(forward: Boolean, label: String, enabled: Boolean, size: Dp, iconSize: Dp, onClick: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val press by animateFloatAsState(
+        targetValue = if (pressed && enabled) 1f else 0f,
+        animationSpec = if (pressed) spring(dampingRatio = 1f, stiffness = 2400f) else spring(dampingRatio = 1f, stiffness = 380f),
+        label = "skipPress",
+    )
+    val shift = remember { Animatable(1f) }
+    val tint = if (enabled) Color.White else Color(0x59FFFFFF)
+    Box(
+        Modifier.size(size).pressable(scale = 0.9f, haptic = enabled, label = label, source = interaction) {
+            if (enabled) {
+                onClick()
+                scope.launch {
+                    shift.snapTo(0f)
+                    shift.animateTo(1f, spring(dampingRatio = 1f, stiffness = 300f))
+                }
+            }
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(size * 0.86f)
+                .graphicsLayer {
+                    alpha = press
+                    scaleX = 0.7f + 0.3f * press
+                    scaleY = scaleX
+                }
+                .clip(CircleShape)
+                .background(Color(0x24FFFFFF)),
+        )
+        Canvas(Modifier.size(iconSize)) {
+            val unit = this.size.minDimension / 24f
+            val t = shift.value
+            val path = Path()
+            fun triangle(left: Float, scale: Float, alpha: Float) {
+                if (scale <= 0.02f) return
+                val centerX = left + 3.6f
+                val half = 4.6f * scale
+                val width = 7.2f * scale
+                path.rewind()
+                path.moveTo((centerX - width / 2f) * unit, (12f - half) * unit)
+                path.lineTo((centerX + width / 2f) * unit, 12f * unit)
+                path.lineTo((centerX - width / 2f) * unit, (12f + half) * unit)
+                path.close()
+                val color = tint.copy(alpha = tint.alpha * alpha)
+                drawPath(path, color)
+                drawPath(path, color, style = Stroke(width = 1.8f * unit * scale, join = StrokeJoin.Round))
+            }
+            withTransform({ if (!forward) scale(-1f, 1f, center) }) {
+                triangle(4.2f - 8.6f + 8.6f * t, t, t)
+                triangle(4.2f + 8.6f * t, 1f, 1f)
+                triangle(12.8f + 8.6f * t, 1f - t, 1f - t)
+            }
+        }
+    }
 }
