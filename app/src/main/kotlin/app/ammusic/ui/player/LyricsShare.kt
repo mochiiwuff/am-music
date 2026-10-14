@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -88,9 +89,7 @@ private fun drawCard(context: Context, track: YtTrack, lines: List<String>, cove
     val tint = cardColor(cover)
 
     if (cover != null) {
-        val tiny = Bitmap.createScaledBitmap(cover, 9, 16, true)
-        val step = Bitmap.createScaledBitmap(tiny, 72, 128, true)
-        canvas.drawBitmap(Bitmap.createScaledBitmap(step, Width, Height, true), 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        canvas.drawBitmap(blurred(cover), null, RectF(0f, 0f, Width.toFloat(), Height.toFloat()), Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG))
     } else {
         canvas.drawColor(tint)
     }
@@ -102,6 +101,8 @@ private fun drawCard(context: Context, track: YtTrack, lines: List<String>, cove
         0f, 0f, Width.toFloat(), Height.toFloat(),
         Paint().apply { shader = RadialGradient(Width / 2f, Height / 2f, Height * 0.75f, 0x00000000, 0x73000000, Shader.TileMode.CLAMP) },
     )
+
+    canvas.drawRect(0f, 0f, Width.toFloat(), Height.toFloat(), Paint().apply { shader = BitmapShader(grain(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) })
 
     val cardWidth = Width - 2 * CardMargin
     val inner = (cardWidth - 2 * Padding).toInt()
@@ -188,4 +189,59 @@ private fun drawCard(context: Context, track: YtTrack, lines: List<String>, cove
     }
     canvas.drawText("AM Music", left + 50f, y + footerHeight - 4f, mark)
     return bitmap
+}
+
+private fun blurred(cover: Bitmap): Bitmap {
+    val cropWidth = (cover.height * Width / Height).coerceAtMost(cover.width)
+    val cropped = Bitmap.createBitmap(cover, (cover.width - cropWidth) / 2, 0, cropWidth, cover.height)
+    val width = Width / 8
+    val height = Height / 8
+    val small = Bitmap.createScaledBitmap(cropped, width, height, true)
+    val pixels = IntArray(width * height)
+    small.getPixels(pixels, 0, width, 0, 0, width, height)
+    val spare = IntArray(pixels.size)
+    repeat(3) {
+        boxBlur(pixels, spare, width, height, 9, horizontal = true)
+        boxBlur(spare, pixels, width, height, 9, horizontal = false)
+    }
+    return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+}
+
+private fun boxBlur(source: IntArray, target: IntArray, width: Int, height: Int, radius: Int, horizontal: Boolean) {
+    val lines = if (horizontal) height else width
+    val length = if (horizontal) width else height
+    val span = 2 * radius + 1
+    for (line in 0 until lines) {
+        fun at(i: Int): Int {
+            val position = i.coerceIn(0, length - 1)
+            return if (horizontal) line * width + position else position * width + line
+        }
+        var red = 0
+        var green = 0
+        var blue = 0
+        for (i in -radius..radius) {
+            val color = source[at(i)]
+            red += (color shr 16) and 0xFF
+            green += (color shr 8) and 0xFF
+            blue += color and 0xFF
+        }
+        for (i in 0 until length) {
+            target[at(i)] = (0xFF shl 24) or ((red / span) shl 16) or ((green / span) shl 8) or (blue / span)
+            val leaving = source[at(i - radius)]
+            val entering = source[at(i + radius + 1)]
+            red += ((entering shr 16) and 0xFF) - ((leaving shr 16) and 0xFF)
+            green += ((entering shr 8) and 0xFF) - ((leaving shr 8) and 0xFF)
+            blue += (entering and 0xFF) - (leaving and 0xFF)
+        }
+    }
+}
+
+private fun grain(): Bitmap {
+    val size = 128
+    val random = java.util.Random(7)
+    val pixels = IntArray(size * size) {
+        val value = random.nextInt(256)
+        (10 shl 24) or (value shl 16) or (value shl 8) or value
+    }
+    return Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
 }
