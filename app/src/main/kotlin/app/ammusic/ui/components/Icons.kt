@@ -81,6 +81,35 @@ object AmIcons {
             Part("M12 15.4 L15.5 20.4 H8.5 Z", fill = true, stroke = 1.2f),
         )
     }
+    val Downloaded by lazy {
+        icon(
+            "Downloaded",
+            Part(circle(12f, 12f, 9f) + " M11.1 6.8 H12.9 V12.7 L15.1 10.5 L16.4 11.8 L12 16.2 L7.6 11.8 L8.9 10.5 L11.1 12.7 Z", fill = true, stroke = 0f, evenOdd = true),
+        )
+    }
+    val Chart by lazy {
+        icon("Chart", Part("M5.5 19 V13.5", stroke = 2.4f), Part("M10 19 V7", stroke = 2.4f), Part("M14.5 19 V10.5", stroke = 2.4f), Part("M19 19 V5", stroke = 2.4f))
+    }
+    val Sliders by lazy {
+        icon(
+            "Sliders",
+            Part("M6 4 V20"),
+            Part("M12 4 V20"),
+            Part("M18 4 V20"),
+            Part(circle(6f, 14.5f, 2.3f), fill = true, stroke = 0f),
+            Part(circle(12f, 8.5f, 2.3f), fill = true, stroke = 0f),
+            Part(circle(18f, 12.5f, 2.3f), fill = true, stroke = 0f),
+        )
+    }
+    val Translate by lazy {
+        icon(
+            "Translate",
+            Part(circle(12f, 12f, 8.5f)),
+            Part("M3.5 12 H20.5"),
+            Part("M12 3.5 C8.8 6.6 8.8 17.4 12 20.5"),
+            Part("M12 3.5 C15.2 6.6 15.2 17.4 12 20.5"),
+        )
+    }
     val Queue by lazy {
         icon("Queue", Part("M4 6.5 H20"), Part("M4 11.5 H11.5"), Part("M4 16.5 H11.5"), Part("M15.4 11.6 L20.4 14.5 L15.4 17.4 Z", fill = true, stroke = 1.4f))
     }

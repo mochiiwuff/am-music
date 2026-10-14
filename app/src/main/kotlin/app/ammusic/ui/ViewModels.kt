@@ -7,6 +7,8 @@ import app.ammusic.data.MusicRepository
 import app.ammusic.data.SearchHistory
 import app.ammusic.data.lyrics.Lyrics
 import app.ammusic.data.lyrics.LyricsRepository
+import app.ammusic.data.lyrics.Translation
+import app.ammusic.youtube.isFrench
 import app.ammusic.playback.PlayerController
 import app.ammusic.youtube.model.YtItem
 import app.ammusic.youtube.model.YtMood
@@ -42,16 +44,31 @@ class PlayerViewModel @Inject constructor(
     val lyrics: StateFlow<Lyrics?> = _lyrics.asStateFlow()
     private var lyricsFor: String? = null
     private var lyricsJob: Job? = null
+    private val _translation = MutableStateFlow<Translation?>(null)
+    val translation: StateFlow<Translation?> = _translation.asStateFlow()
+    private var translationFor: String? = null
 
     fun loadLyrics() {
         val track = state.value.track ?: return
         if (lyricsFor == track.id) return
         lyricsFor = track.id
         _lyrics.value = null
+        _translation.value = null
+        translationFor = null
         lyricsJob?.cancel()
         lyricsJob = viewModelScope.launch {
             val duration = withTimeoutOrNull(3_000) { state.first { it.track?.id == track.id && it.durationMs > 0 }.durationMs } ?: 0L
             _lyrics.value = lyricsRepository.find(track, duration)
+        }
+    }
+
+    fun loadTranslation(lines: List<String>) {
+        val key = lyricsFor ?: return
+        if (translationFor == key) return
+        translationFor = key
+        viewModelScope.launch {
+            val result = lyricsRepository.translate(lines, if (isFrench) "fr" else "en")
+            if (translationFor == key) _translation.value = result
         }
     }
 

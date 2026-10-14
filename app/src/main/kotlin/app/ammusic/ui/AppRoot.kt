@@ -67,6 +67,9 @@ import app.ammusic.ui.components.RowCoverSize
 import app.ammusic.ui.components.Tab
 import app.ammusic.ui.components.MenuRequest
 import app.ammusic.ui.components.MenuSheet
+import app.ammusic.ui.components.DownloadsInfo
+import app.ammusic.ui.components.LocalDownloads
+import app.ammusic.data.library.DownloadState
 import app.ammusic.ui.components.ContextMenu
 import app.ammusic.ui.components.PreviewRequest
 import app.ammusic.ui.components.PromptRequest
@@ -87,8 +90,10 @@ import app.ammusic.youtube.model.YtPlaylist
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.ui.home.HomeScreen
 import app.ammusic.ui.library.LibraryScreen
+import app.ammusic.ui.library.RecapScreen
 import app.ammusic.ui.search.SearchScreen
 import app.ammusic.ui.settings.SettingsScreen
+import app.ammusic.ui.settings.EqualizerScreen
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.ui.theme.ThemeMode
 import dev.chrisbanes.haze.rememberHazeState
@@ -154,6 +159,8 @@ fun AppRoot(
     val libraryViewModel: LibraryViewModel = hiltViewModel()
     val playlists by libraryViewModel.playlists.collectAsStateWithLifecycle()
     val likedIds by libraryViewModel.likedIds.collectAsStateWithLifecycle()
+    val downloadStates by libraryViewModel.downloadStates.collectAsStateWithLifecycle()
+    val downloadRunning by libraryViewModel.downloadRunning.collectAsStateWithLifecycle()
     val account by libraryViewModel.account.collectAsStateWithLifecycle()
 
     val openArtist = { id: String, name: String -> nav.navigate(ArtistRoute(id, name, null, "", RowCoverSize)) }
@@ -180,6 +187,11 @@ fun AppRoot(
             },
             MenuAction(AmIcons.Playlist, tr("Ajouter à une playlist", "Add to a playlist")) { choosePlaylist(track) },
             MenuAction(AmIcons.Radio, tr("Lancer la radio du titre", "Start song radio")) { playerViewModel.play(track) },
+            if (downloadStates[track.id] == null || downloadStates[track.id] == DownloadState.Failed) {
+                MenuAction(AmIcons.Download, tr("Télécharger", "Download")) { libraryViewModel.download(listOf(track)) }
+            } else {
+                MenuAction(AmIcons.Downloaded, tr("Supprimer le téléchargement", "Remove download")) { libraryViewModel.removeDownloads(listOf(track.id)) }
+            },
             track.albumId?.let { id ->
                 MenuAction(AmIcons.Album, tr("Voir l'album", "Go to album")) {
                     nav.navigate(CollectionRoute(true, id, track.album.orEmpty(), track.artists, track.thumbnail, "", RowCoverSize))
@@ -208,12 +220,14 @@ fun AppRoot(
                 }
             },
             playAll = playerViewModel::playAll,
+            download = libraryViewModel::download,
+            removeDownloads = libraryViewModel::removeDownloads,
             toggle = { playerViewModel.toggle() },
             menu = { track, extras -> sheetRequest = MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras) },
             preview = { track, extras, from -> previewRequest = PreviewRequest(MenuRequest(track.title, track.artists, track.thumbnail, currentTrackActions(track) + extras), from) },
             sheet = { sheetRequest = it },
             prompt = { title, initial, thumbnail, onConfirm -> promptRequest = PromptRequest(title, initial, thumbnail, onConfirm) },
-            openLibrary = { kind -> nav.navigate(LibraryListRoute(kind)) },
+            openLibrary = { kind -> if (kind == LibraryKind.Recap) nav.navigate(RecapRoute) else nav.navigate(LibraryListRoute(kind)) },
             openLogin = { nav.navigate(LoginRoute) { launchSingleTop = true } },
             openMood = { nav.navigate(BrowseRoute(it.browseId, it.params, it.title, artist = false)) },
             openMore = { title, browseId, params -> nav.navigate(BrowseRoute(browseId, params, title, artist = true)) },
@@ -228,6 +242,7 @@ fun AppRoot(
         LocalActions provides actions,
         LocalAccount provides account,
         LocalNowPlaying provides NowPlaying(player.track?.id, player.isPlaying),
+        LocalDownloads provides DownloadsInfo(downloadStates, downloadRunning),
     ) {
         Box(Modifier.fillMaxSize().background(AmTheme.colors.background).nestedScroll(scroll)) {
             SharedTransitionLayout {
@@ -249,6 +264,7 @@ fun AppRoot(
                     composable<ArtistRoute> { screen { ArtistScreen() } }
                     composable<BrowseRoute> { screen { BrowseScreen() } }
                     composable<LibraryListRoute> { entry -> screen { LibraryListScreen(entry.toRoute<LibraryListRoute>().kind) } }
+                    composable<RecapRoute> { screen { RecapScreen() } }
                     composable<LoginRoute>(
                         enterTransition = { slideInVertically(SlideSpec) { it } },
                         popExitTransition = { slideOutVertically(SlideSpec) { it } },
@@ -259,7 +275,13 @@ fun AppRoot(
                         enterTransition = { slideInHorizontally(SlideSpec) { it } },
                         popExitTransition = { slideOutHorizontally(SlideSpec) { it } },
                     ) {
-                        SettingsScreen(themeMode, onThemeMode, accentIndex, onAccent, onBack = { nav.popBackStack() })
+                        SettingsScreen(themeMode, onThemeMode, accentIndex, onAccent, onBack = { nav.popBackStack() }, onEqualizer = { nav.navigate(EqualizerRoute) })
+                    }
+                    composable<EqualizerRoute>(
+                        enterTransition = { slideInHorizontally(SlideSpec) { it } },
+                        popExitTransition = { slideOutHorizontally(SlideSpec) { it } },
+                    ) {
+                        EqualizerScreen()
                     }
                 }
             }

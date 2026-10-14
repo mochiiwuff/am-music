@@ -8,8 +8,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -52,6 +56,30 @@ class LyricsRepository @Inject constructor() {
     private val json = Json { ignoreUnknownKeys = true }
     private val cache = object : LinkedHashMap<String, Lyrics>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Lyrics>?) = size > 30
+    }
+
+    private val translations = object : LinkedHashMap<String, Translation>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Translation>?) = size > 12
+    }
+
+    suspend fun translate(lines: List<String>, target: String): Translation? = withContext(Dispatchers.IO) {
+        val text = lines.joinToString("\n")
+        if (text.isBlank()) return@withContext null
+        val key = target + ":" + text.hashCode()
+        synchronized(translations) { translations[key] }?.let { return@withContext it }
+        val url = "https://translate.googleapis.com/translate_a/single".toHttpUrl().newBuilder()
+            .addQueryParameter("client", "gtx")
+            .addQueryParameter("sl", "auto")
+            .addQueryParameter("tl", target)
+            .addQueryParameter("dt", "t")
+            .build()
+        val request = Request.Builder().url(url).post(FormBody.Builder().add("q", text).build()).build()
+        val body = runCatching { client.newCall(request).execute().use { if (it.isSuccessful) it.body?.string() else null } }
+            .onFailure { Log.w(Tag, "traduction : ${it.javaClass.simpleName}") }
+            .getOrNull() ?: return@withContext null
+        val result = runCatching { parseTranslation(body, lines.size, target) }.onFailure { Log.w(Tag, "traduction illisible") }.getOrNull()
+        if (result != null) synchronized(translations) { translations[key] = result }
+        result
     }
 
     suspend fun find(track: YtTrack, durationMs: Long): Lyrics = withContext(Dispatchers.IO) {
@@ -156,4 +184,15 @@ class LyricsRepository @Inject constructor() {
             if (response.isSuccessful) response.body?.string() else null
         }
     }.onFailure { Log.w(Tag, "${url.host} : ${it.javaClass.simpleName}") }.getOrNull()
+}
+
+class Translation(val lines: List<String>, val sameLanguage: Boolean)
+
+internal fun parseTranslation(body: String, expected: Int, target: String): Translation? {
+    val root = Json.parseToJsonElement(body).jsonArray
+    val source = root.getOrNull(2)?.jsonPrimitive?.contentOrNull
+    if (source != null && source.substringBefore('-') == target) return Translation(emptyList(), sameLanguage = true)
+    val text = root[0].jsonArray.joinToString("") { segment -> segment.jsonArray[0].jsonPrimitive.contentOrNull.orEmpty() }
+    val lines = text.split("\n").map { it.trim() }
+    return if (lines.size == expected) Translation(lines, sameLanguage = false) else null
 }

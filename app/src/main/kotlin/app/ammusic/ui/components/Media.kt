@@ -61,6 +61,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -73,6 +75,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.ammusic.data.library.CoverSeparator
+import app.ammusic.data.library.DownloadState
 import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtAlbum
 import app.ammusic.youtube.model.YtArtist
@@ -295,7 +298,10 @@ fun ItemRow(
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             AmText(item.title, style = AmTheme.type.body.copy(fontSize = 16.sp, lineHeight = 21.sp), color = if (current) colors.accent else colors.text, maxLines = 1)
-            AmText(item.caption(), style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (track != null) DownloadMark(track.id)
+                AmText(item.caption(), style = AmTheme.type.footnote, color = colors.textSecondary, maxLines = 1)
+            }
         }
         if (track != null) {
             IconButton(AmIcons.More, label = tr("Plus d'options", "More options"), onClick = { actions.menu(track, extras) }, tint = colors.textSecondary, iconSize = 20.dp)
@@ -383,5 +389,34 @@ fun EmptyState(icon: ImageVector, title: String, modifier: Modifier = Modifier, 
         if (text != null) {
             AmText(text, style = AmTheme.type.subhead, color = colors.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
         }
+    }
+}
+
+@Composable
+fun DownloadMark(trackId: String, modifier: Modifier = Modifier) {
+    val colors = AmTheme.colors
+    val info = LocalDownloads.current
+    val state = info.states[trackId] ?: return
+    val running = info.running[trackId]
+    Box(modifier.padding(end = 5.dp).size(13.dp), contentAlignment = Alignment.Center) {
+        when {
+            state == DownloadState.Done -> AmIcon(AmIcons.Downloaded, tint = colors.textSecondary, size = 13.dp)
+            state == DownloadState.Failed -> AmIcon(AmIcons.Download, tint = colors.accent, size = 13.dp)
+            running != null -> ProgressRing(running, colors.accent, Modifier.size(12.dp))
+            else -> AmIcon(AmIcons.Download, tint = colors.textTertiary, size = 13.dp)
+        }
+    }
+}
+
+@Composable
+fun ProgressRing(fraction: Float, color: Color, modifier: Modifier = Modifier, stroke: Dp = 1.6.dp) {
+    val shown by animateFloatAsState(fraction.coerceIn(0f, 1f), spring(dampingRatio = 1f, stiffness = 120f), label = "ring")
+    val track = AmTheme.colors.hairline
+    Canvas(modifier) {
+        val width = stroke.toPx()
+        val inset = width / 2f
+        val arc = Size(size.width - width, size.height - width)
+        drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(width))
+        drawArc(color, -90f, 360f * shown, false, Offset(inset, inset), arc, style = Stroke(width, cap = StrokeCap.Round))
     }
 }

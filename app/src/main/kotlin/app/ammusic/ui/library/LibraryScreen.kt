@@ -28,11 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.ammusic.data.UserSettings
+import app.ammusic.data.library.DownloadState
+import app.ammusic.data.library.songCount
 import app.ammusic.ui.LibraryKind
 import app.ammusic.ui.LibraryViewModel
 import app.ammusic.ui.components.AmIcon
@@ -46,6 +50,9 @@ import app.ammusic.ui.components.ItemTile
 import app.ammusic.ui.components.LargeTitleScreen
 import app.ammusic.ui.components.ListCoverSize
 import app.ammusic.ui.components.LocalActions
+import app.ammusic.ui.components.LocalDownloads
+import app.ammusic.ui.components.ProgressRing
+import app.ammusic.ui.components.SwipeToRemove
 import app.ammusic.ui.components.SectionHeader
 import app.ammusic.ui.components.TileCoverSize
 import app.ammusic.ui.components.cascade
@@ -68,7 +75,9 @@ private val Shelves get() = listOf(
     Shelf(LibraryKind.Artists, tr("Artistes", "Artists"), AmIcons.Artist),
     Shelf(LibraryKind.Albums, "Albums", AmIcons.Album),
     Shelf(LibraryKind.Liked, tr("Titres aimés", "Liked songs"), AmIcons.Heart),
+    Shelf(LibraryKind.Downloads, tr("Téléchargés", "Downloaded"), AmIcons.Download),
     Shelf(LibraryKind.History, tr("Historique", "History"), AmIcons.Clock),
+    Shelf(LibraryKind.Recap, tr("Récap", "Recap"), AmIcons.Chart),
 )
 
 @Composable
@@ -175,6 +184,8 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
     val shelf = Shelves.first { it.kind == kind }
     val liked by viewModel.liked.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
+    val downloadBytes by viewModel.downloadBytes.collectAsStateWithLifecycle()
     val albums by viewModel.albums.collectAsStateWithLifecycle()
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -201,6 +212,7 @@ fun LibraryListScreen(kind: String, viewModel: LibraryViewModel = hiltViewModel(
     ) {
         when (kind) {
             LibraryKind.Liked -> tracks(liked, origin, AmIcons.Heart, tr("Aucun titre aimé", "No liked songs"))
+            LibraryKind.Downloads -> downloads(downloaded, downloadBytes, origin, viewModel::removeDownloads)
             LibraryKind.History -> tracks(history, origin, AmIcons.Clock, tr("Historique vide", "No history"))
             LibraryKind.Albums -> {
                 if (albums.isEmpty()) item(key = "empty") { EmptyState(AmIcons.Album, tr("Aucun album", "No albums")) }
@@ -295,5 +307,75 @@ private fun PlaylistRow(playlist: YtPlaylist, origin: String, modifier: Modifier
             }
         }
         AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 18.dp)
+    }
+}
+
+private fun LazyListScope.downloads(tracks: List<YtTrack>, bytes: Long, origin: String, onRemove: (Collection<String>) -> Unit) {
+    item(key = "downloadStatus", contentType = "status") { DownloadStatus(tracks.size, bytes) }
+    if (tracks.isEmpty()) {
+        item(key = "empty") {
+            EmptyState(AmIcons.Download, tr("Aucun téléchargement", "No downloads"), text = tr("Pour écouter sans connexion.", "To listen offline."))
+        }
+        return
+    }
+    item(key = "buttons", contentType = "buttons") {
+        val actions = LocalActions.current
+        Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PillButton(tr("Lecture", "Play"), AmIcons.Play, filled = true, enabled = true, onClick = { actions.playAll(tracks, 0, false) }, modifier = Modifier.weight(1f))
+            PillButton(tr("Aléatoire", "Shuffle"), AmIcons.Shuffle, filled = false, enabled = true, onClick = { actions.playAll(tracks, 0, true) }, modifier = Modifier.weight(1f))
+        }
+    }
+    itemsIndexed(tracks, key = { _, track -> track.id }, contentType = { _, _ -> "track" }) { index, track ->
+        val actions = LocalActions.current
+        SwipeToRemove(onRemove = { onRemove(listOf(track.id)) }, modifier = Modifier.fillMaxWidth().animateItem()) {
+            ItemRow(
+                item = track,
+                origin = origin,
+                modifier = Modifier.fillMaxWidth().listRow(),
+                onClick = { actions.playAll(tracks, index, null) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadStatus(count: Int, bytes: Long) {
+    val colors = AmTheme.colors
+    val context = LocalContext.current
+    val info = LocalDownloads.current
+    val settings by UserSettings.state.collectAsStateWithLifecycle()
+    val pending = info.states.count { it.value == DownloadState.Queued || it.value == DownloadState.Running }
+    val running = info.running.values.firstOrNull()
+    val waiting = pending > 0 && running == null && settings.downloadOnWifi && UserSettings.onMeteredNetwork(context)
+    Row(
+        Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp).fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AmText(
+            text = listOf(songCount(count), storageSize(bytes)).joinToString(" · "),
+            style = AmTheme.type.subhead,
+            color = colors.textSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        if (pending > 0) {
+            if (running != null) ProgressRing(running, colors.accent, Modifier.size(16.dp), stroke = 2.dp)
+            AmText(
+                text = when {
+                    waiting -> tr("En attente du Wi-Fi", "Waiting for Wi-Fi")
+                    else -> tr("$pending en cours", "$pending in progress")
+                },
+                style = AmTheme.type.subhead,
+                color = colors.accent,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+    }
+}
+
+fun storageSize(bytes: Long): String {
+    val megabytes = bytes / (1024f * 1024f)
+    return when {
+        megabytes >= 1024f -> "${"%.1f".format(megabytes / 1024f)}" + tr(" Go", " GB")
+        else -> "${megabytes.toInt()}" + tr(" Mo", " MB")
     }
 }

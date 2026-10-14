@@ -4,10 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import androidx.core.net.toUri
-import androidx.core.os.bundleOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -75,6 +73,7 @@ class PlayerController @Inject constructor(
     private val suggested = HashSet<String>()
     private var skipJob: Job? = null
     private var sleepJob: Job? = null
+    private var listening: Listening? = null
     private val _sleep = MutableStateFlow(SleepTimer())
     val sleep: StateFlow<SleepTimer> = _sleep.asStateFlow()
     private val covers = HashMap<String, String?>()
@@ -224,6 +223,33 @@ class PlayerController @Inject constructor(
         _sleep.value = SleepTimer(endOfTrack = true)
     }
 
+    private fun trackListening(player: MediaController) {
+        val track = player.currentMediaItem?.toTrack()
+        if (listening?.track?.id != track?.id) {
+            finishListening()
+            listening = track?.let { Listening(it, System.currentTimeMillis()) }
+        }
+        val current = listening ?: return
+        val now = System.currentTimeMillis()
+        if (player.isPlaying && current.resumedAt == null) {
+            current.resumedAt = now
+            if (!current.recorded && !UserSettings.current.historyPaused) {
+                current.recorded = true
+                library.recordPlay(current.track)
+            }
+        } else if (!player.isPlaying && current.resumedAt != null) {
+            current.listenedMs += now - (current.resumedAt ?: now)
+            current.resumedAt = null
+        }
+    }
+
+    private fun finishListening() {
+        val done = listening ?: return
+        listening = null
+        val total = done.listenedMs + (done.resumedAt?.let { System.currentTimeMillis() - it } ?: 0L)
+        if (total >= CountAfterMs && !UserSettings.current.historyPaused) library.recordListen(done.track, done.startedAt, total)
+    }
+
     private fun watchSegments(player: MediaController) {
         skipJob?.cancel()
         if (!UserSettings.current.skipSegments) return
@@ -276,12 +302,13 @@ class PlayerController @Inject constructor(
                         extendQueue(controller)
                         fixCover(controller)
                         watchSegments(controller)
-                        if (!UserSettings.current.historyPaused) controller.currentMediaItem?.toTrack()?.let(library::recordPlay)
                     }
+                    if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED)) trackListening(controller)
                     if (player.playbackState == Player.STATE_ENDED && _sleep.value.endOfTrack) _sleep.value = SleepTimer()
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) finishListening()
                     if (_sleep.value.endOfTrack && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT)) {
                         controller.pause()
                         _sleep.value = SleepTimer()
@@ -323,28 +350,11 @@ class PlayerController @Inject constructor(
     }
 }
 
-private fun MediaItem.toTrack() = YtTrack(
-    id = mediaId,
-    title = mediaMetadata.title?.toString().orEmpty(),
-    artists = mediaMetadata.artist?.toString().orEmpty(),
-    album = mediaMetadata.albumTitle?.toString(),
-    thumbnail = mediaMetadata.artworkUri?.toString(),
-    artistId = mediaMetadata.extras?.getString(ArtistIdKey),
-    albumId = mediaMetadata.extras?.getString(AlbumIdKey),
-)
 
-private const val ArtistIdKey = "artistId"
-private const val AlbumIdKey = "albumId"
+private const val CountAfterMs = 30_000L
 
-private fun YtTrack.toMediaItem(): MediaItem = MediaItem.Builder()
-    .setMediaId(id)
-    .setMediaMetadata(
-        MediaMetadata.Builder()
-            .setTitle(title)
-            .setArtist(artists)
-            .setAlbumTitle(album)
-            .setArtworkUri(thumbnail?.thumbnailAt(544)?.toUri())
-            .setExtras(bundleOf(ArtistIdKey to artistId, AlbumIdKey to albumId))
-            .build(),
-    )
-    .build()
+private class Listening(val track: YtTrack, val startedAt: Long) {
+    var listenedMs = 0L
+    var resumedAt: Long? = null
+    var recorded = false
+}

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.ammusic.data.Settings
 import app.ammusic.data.UserSettings
 import app.ammusic.data.library.LibraryRepository
+import app.ammusic.data.downloads.DownloadRepository
 import app.ammusic.playback.PlayerController
 import app.ammusic.playback.audioCacheBytes
 import app.ammusic.playback.clearAudioCache
@@ -24,9 +25,11 @@ class SettingsViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val player: PlayerController,
     private val library: LibraryRepository,
+    private val downloads: DownloadRepository,
 ) : ViewModel() {
     val settings = UserSettings.state
     val sleep = player.sleep
+    val downloadBytes = downloads.bytes
 
     private val _cacheBytes = MutableStateFlow(0L)
     val cacheBytes: StateFlow<Long> = _cacheBytes.asStateFlow()
@@ -42,6 +45,10 @@ class SettingsViewModel @Inject constructor(
     fun sleepAtEndOfTrack(enabled: Boolean) = if (enabled) player.sleepAtEndOfTrack() else player.sleepIn(null)
 
     fun clearHistory() = library.clearHistory()
+
+    fun clearPlays() = library.clearPlays()
+
+    fun removeDownloads() = downloads.removeAll()
 
     fun clearCache() {
         viewModelScope.launch {

@@ -3,6 +3,9 @@ package app.ammusic.playback
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.media.audiofx.Equalizer
+import android.net.Uri
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
@@ -14,6 +17,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
@@ -23,26 +27,40 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionError
 import app.ammusic.MainActivity
 import app.ammusic.R
 import app.ammusic.data.UserSettings
+import app.ammusic.data.downloads.DownloadRepository
+import app.ammusic.data.equalizerGains
+import app.ammusic.data.gainAt
+import app.ammusic.data.library.LibraryRepository
+import app.ammusic.data.library.toTrack
 import app.ammusic.youtube.YouTubeMusic
 import app.ammusic.youtube.stream.StreamInfo
+import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.File
 import java.io.IOException
+import javax.inject.Inject
 
 private const val TAG = "AmPlayback"
 private const val MAX_RETRIES = 6
@@ -50,28 +68,29 @@ private const val MAX_RETRIES = 6
 fun trackUri(videoId: String) = "ammusic://track/$videoId".toUri()
 
 @OptIn(UnstableApi::class)
-class PlaybackService : MediaSessionService() {
+@AndroidEntryPoint
+class PlaybackService : MediaLibraryService() {
+    @Inject lateinit var library: LibraryRepository
+    @Inject lateinit var downloads: DownloadRepository
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val retries = HashMap<String, Int>()
     private lateinit var player: ExoPlayer
-    private var session: MediaSession? = null
+    private lateinit var tree: LibraryTree
+    private var session: MediaLibrarySession? = null
+    private var equalizer: Equalizer? = null
+    private var saveJob: Job? = null
+    private var widgetJob: Job? = null
+    private var widgetArt: Pair<String, Pair<Bitmap?, Int?>>? = null
 
     override fun onCreate() {
         super.onCreate()
+        tree = LibraryTree(library, downloads)
         val cached = CacheDataSource.Factory()
             .setCache(audioCache(this))
             .setUpstreamDataSourceFactory(OkHttpDataSource.Factory(OkHttpClient()))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-        val resolving = ResolvingDataSource.Factory(cached) { spec ->
-            val videoId = spec.key ?: throw IOException("Titre sans identifiant")
-            val stream = try {
-                runBlocking(Dispatchers.IO) { YouTubeMusic.streams.resolve(videoId, UserSettings.streamQuality(this@PlaybackService), sticky = spec.position > 0L) }
-            } catch (e: Exception) {
-                throw IOException(e)
-            }
-            if (spec.position == 0L) Log.i(TAG, "Flux $videoId via ${stream.source}/${stream.client}, plages de ${stream.chunkBytes} octets")
-            spec.withStream(stream)
-        }
+        val resolving = ResolvingDataSource.Factory(DefaultDataSource.Factory(this, cached)) { spec -> resolve(spec) }
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolving))
@@ -83,6 +102,8 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         player.addListener(recovery)
+        player.addListener(watcher)
+        restoreQueue()
 
         val openApp = PendingIntent.getActivity(
             this,
@@ -90,23 +111,139 @@ class PlaybackService : MediaSessionService() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, player)
+        session = MediaLibrarySession.Builder(this, player, callback)
             .setSessionActivity(openApp)
-            .setCallback(SessionCallback)
             .build()
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this).build().apply { setSmallIcon(R.drawable.ic_notification) },
         )
+
+        scope.launch {
+            UserSettings.state.map { it.equalizerGains() }.distinctUntilChanged().collect(::applyEqualizer)
+        }
+        scope.launch {
+            while (true) {
+                delay(10_000)
+                if (player.isPlaying) QueueStore.save(this@PlaybackService, player)
+            }
+        }
+        updateWidget()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    private fun resolve(spec: DataSpec): DataSpec {
+        val videoId = spec.key ?: throw IOException("Titre sans identifiant")
+        val offline = downloads.fileFor(videoId)
+        if (offline != null) {
+            if (spec.position == 0L) Log.i(TAG, "Lecture de $videoId depuis le téléphone")
+            return spec.buildUpon().setUri(Uri.fromFile(offline)).setKey(null).build()
+        }
+        val stream = try {
+            runBlocking(Dispatchers.IO) { YouTubeMusic.streams.resolve(videoId, UserSettings.streamQuality(this@PlaybackService), sticky = spec.position > 0L) }
+        } catch (e: Exception) {
+            throw IOException(e)
+        }
+        if (spec.position == 0L) Log.i(TAG, "Flux $videoId via ${stream.source}/${stream.client}, plages de ${stream.chunkBytes} octets")
+        return spec.withStream(stream)
+    }
+
+    private fun restoreQueue() {
+        val saved = QueueStore.load(this) ?: return
+        player.setMediaItems(saved.tracks.map { it.toMediaItem(playable = true) }, saved.index, saved.positionMs)
+        player.shuffleModeEnabled = saved.shuffle
+        player.repeatMode = saved.repeat
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        QueueStore.save(this, player)
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
+        QueueStore.save(this, player)
         scope.cancel()
+        equalizer?.release()
+        equalizer = null
         session?.release()
         session = null
         player.release()
         super.onDestroy()
+    }
+
+    private fun applyEqualizer(gains: List<Int>?) {
+        if (gains == null) {
+            equalizer?.enabled = false
+            return
+        }
+        val eq = equalizer ?: runCatching { Equalizer(0, player.audioSessionId) }
+            .onFailure { Log.w(TAG, "égaliseur indisponible : ${it.javaClass.simpleName}") }
+            .getOrNull()
+            ?.also { equalizer = it } ?: return
+        runCatching {
+            val range = eq.bandLevelRange
+            for (band in 0 until eq.numberOfBands) {
+                val hz = eq.getCenterFreq(band.toShort()) / 1000f
+                val level = (gainAt(gains, hz) * 100).toInt().coerceIn(range[0].toInt(), range[1].toInt())
+                eq.setBandLevel(band.toShort(), level.toShort())
+            }
+            eq.enabled = true
+        }.onFailure { Log.w(TAG, "égaliseur : ${it.javaClass.simpleName}") }
+    }
+
+    private fun saveSoon() {
+        saveJob?.cancel()
+        saveJob = scope.launch {
+            delay(800)
+            QueueStore.save(this@PlaybackService, player)
+        }
+    }
+
+    private fun updateWidget() {
+        if (!NowPlayingWidget.hasWidgets(this)) return
+        val metadata = player.currentMediaItem?.mediaMetadata
+        val playing = player.isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING)
+        val art = metadata?.artworkUri?.toString()
+        val known = widgetArt?.takeIf { it.first == art }?.second
+        val content = { cover: Bitmap?, tint: Int? -> WidgetContent(metadata?.title?.toString(), metadata?.artist?.toString(), playing, cover, tint) }
+        NowPlayingWidget.push(this, content(known?.first, known?.second))
+        if (known != null || art == null) return
+        widgetJob?.cancel()
+        widgetJob = scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { NowPlayingWidget.artwork(this@PlaybackService, art) }.getOrDefault(null to null) }
+            widgetArt = art to result
+            NowPlayingWidget.push(this@PlaybackService, content(result.first, result.second))
+        }
+    }
+
+    private val watcher = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(
+                    Player.EVENT_TIMELINE_CHANGED,
+                    Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    Player.EVENT_IS_PLAYING_CHANGED,
+                    Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
+                    Player.EVENT_REPEAT_MODE_CHANGED,
+                )
+            ) {
+                saveSoon()
+            }
+            if (events.containsAny(
+                    Player.EVENT_MEDIA_METADATA_CHANGED,
+                    Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    Player.EVENT_IS_PLAYING_CHANGED,
+                    Player.EVENT_PLAYBACK_STATE_CHANGED,
+                )
+            ) {
+                updateWidget()
+            }
+        }
+
+        override fun onAudioSessionIdChanged(audioSessionId: Int) {
+            equalizer?.release()
+            equalizer = null
+            applyEqualizer(UserSettings.current.equalizerGains())
+        }
     }
 
     private val recovery = object : Player.Listener {
@@ -137,14 +274,113 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private object SessionCallback : MediaSession.Callback {
+    private fun <T> later(block: suspend () -> T): ListenableFuture<T> {
+        val future = SettableFuture.create<T>()
+        scope.launch {
+            runCatching { block() }.fold(future::set, future::setException)
+        }
+        return future
+    }
+
+    private suspend fun playableItems(items: List<MediaItem>): List<MediaItem> = items.map { item ->
+        val id = item.mediaId.substringAfterLast(TreeSeparator)
+        if (item.mediaMetadata.title != null) {
+            item.buildUpon().setMediaId(id).build().playable()
+        } else {
+            withContext(Dispatchers.IO) { library.dao.track(id) }?.toTrack()?.toMediaItem(playable = true) ?: item.buildUpon().setMediaId(id).build().playable()
+        }
+    }
+
+    private val callback = object : MediaLibrarySession.Callback {
         override fun onAddMediaItems(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
-        ): ListenableFuture<List<MediaItem>> = Futures.immediateFuture(
-            mediaItems.map { it.buildUpon().setUri(trackUri(it.mediaId)).setCustomCacheKey(it.mediaId).build() },
-        )
+        ): ListenableFuture<List<MediaItem>> = if (mediaItems.all { TreeSeparator !in it.mediaId && it.mediaMetadata.title != null }) {
+            Futures.immediateFuture(mediaItems.map { it.playable() })
+        } else {
+            later { playableItems(mediaItems) }
+        }
+
+        override fun onSetMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val single = mediaItems.singleOrNull()?.mediaId
+            if (single == null || TreeSeparator !in single) {
+                return if (mediaItems.all { it.mediaMetadata.title != null }) {
+                    Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(mediaItems.map { it.playable() }, startIndex, startPositionMs))
+                } else {
+                    later { MediaSession.MediaItemsWithStartPosition(playableItems(mediaItems), startIndex, startPositionMs) }
+                }
+            }
+            val parent = single.substringBeforeLast(TreeSeparator)
+            val trackId = single.substringAfterLast(TreeSeparator)
+            return later {
+                val tracks = tree.tracks(parent).distinctBy { it.id }
+                val index = tracks.indexOfFirst { it.id == trackId }
+                if (index < 0) {
+                    MediaSession.MediaItemsWithStartPosition(playableItems(mediaItems), 0, startPositionMs)
+                } else {
+                    MediaSession.MediaItemsWithStartPosition(tracks.map { it.toMediaItem(playable = true) }, index, startPositionMs)
+                }
+            }
+        }
+
+        @Deprecated("Remplacée par la version avec isForPlayback")
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val saved = QueueStore.load(this@PlaybackService)
+                ?: return Futures.immediateFailedFuture(UnsupportedOperationException("Aucune file enregistrée"))
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(saved.tracks.map { it.toMediaItem(playable = true) }, saved.index, saved.positionMs),
+            )
+        }
+
+        @Suppress("DEPRECATION")
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = onPlaybackResumption(mediaSession, controller)
+
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(LibraryResult.ofItem(tree.root(), params))
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String,
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val folder = tree.folderFor(mediaId)
+            if (folder != null) return Futures.immediateFuture(LibraryResult.ofItem(folder, null))
+            return later {
+                val track = withContext(Dispatchers.IO) { library.dao.track(mediaId.substringAfterLast(TreeSeparator)) }
+                if (track != null) LibraryResult.ofItem(track.toTrack().toMediaItem(), null) else LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
+            }
+        }
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = later {
+            val all = runCatching { tree.children(parentId) }.getOrDefault(emptyList())
+            val from = (page * pageSize).coerceIn(0, all.size)
+            val to = (from + pageSize).coerceIn(from, all.size)
+            LibraryResult.ofItemList(ImmutableList.copyOf(all.subList(from, to)), params)
+        }
     }
 }
 

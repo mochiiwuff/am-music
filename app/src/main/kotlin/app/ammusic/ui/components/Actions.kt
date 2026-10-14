@@ -13,6 +13,8 @@ import app.ammusic.youtube.model.YtTrack
 class AppActions(
     val open: (item: YtItem, origin: String, coverSize: Int) -> Unit,
     val playAll: (tracks: List<YtTrack>, index: Int, shuffle: Boolean?) -> Unit,
+    val download: (List<YtTrack>) -> Unit,
+    val removeDownloads: (Collection<String>) -> Unit,
     val toggle: () -> Unit,
     val menu: (YtTrack, List<MenuAction>) -> Unit,
     val preview: (YtTrack, List<MenuAction>, Rect?) -> Unit,
@@ -36,3 +38,8 @@ val LocalNowPlaying = compositionLocalOf { NowPlaying() }
 fun sharedKey(origin: String, item: YtItem): String = "$origin/${item.key}"
 
 val LocalAccount = compositionLocalOf<YtAccount?> { null }
+
+@Immutable
+data class DownloadsInfo(val states: Map<String, Int> = emptyMap(), val running: Map<String, Float> = emptyMap())
+
+val LocalDownloads = compositionLocalOf { DownloadsInfo() }

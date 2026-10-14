@@ -25,6 +25,10 @@ data class Settings(
     val wordByWord: Boolean = true,
     val historyPaused: Boolean = false,
     val cacheMb: Int = 512,
+    val downloadOnWifi: Boolean = true,
+    val eqPreset: String = "off",
+    val eqCustom: List<Int> = List(5) { 0 },
+    val translateLyrics: Boolean = false,
 )
 
 val CacheChoicesMb = listOf(256, 512, 1024, 2048)
@@ -51,6 +55,10 @@ object UserSettings {
             wordByWord = stored.getBoolean("wordByWord", true),
             historyPaused = stored.getBoolean("historyPaused", false),
             cacheMb = stored.getInt("cacheMb", 512).takeIf { it in CacheChoicesMb } ?: 512,
+            downloadOnWifi = stored.getBoolean("downloadOnWifi", true),
+            eqPreset = stored.getString("eqPreset", "off") ?: "off",
+            eqCustom = stored.getString("eqCustom", null)?.split(",")?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size == 5 } ?: List(5) { 0 },
+            translateLyrics = stored.getBoolean("translateLyrics", false),
         )
         appLanguage = current.language.ifEmpty { null }
     }
@@ -72,12 +80,19 @@ object UserSettings {
             putBoolean("wordByWord", next.wordByWord)
             putBoolean("historyPaused", next.historyPaused)
             putInt("cacheMb", next.cacheMb)
+            putBoolean("downloadOnWifi", next.downloadOnWifi)
+            putString("eqPreset", next.eqPreset)
+            putString("eqCustom", next.eqCustom.joinToString(","))
+            putBoolean("translateLyrics", next.translateLyrics)
         }
         if (languageChanged) {
             appLanguage = next.language.ifEmpty { null }
             YouTubeMusic.setLanguage(Locale.getDefault().country.ifEmpty { "US" }, if (isFrench) "fr" else "en")
         }
     }
+
+    fun onMeteredNetwork(context: Context): Boolean =
+        context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true
 
     fun streamQuality(context: Context): AudioQuality {
         val metered = context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true

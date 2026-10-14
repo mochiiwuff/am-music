@@ -56,6 +56,9 @@ import app.ammusic.ui.components.LocalActions
 import app.ammusic.ui.components.MenuAction
 import app.ammusic.ui.components.MenuRequest
 import app.ammusic.ui.components.RowCoverSize
+import app.ammusic.ui.components.SegmentedControl
+import app.ammusic.ui.library.storageSize
+import app.ammusic.data.EqualizerPresets
 import app.ammusic.ui.components.hairlineBelow
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.components.slidingPill
@@ -81,6 +84,7 @@ fun SettingsScreen(
     accentIndex: Int,
     onAccent: (Int) -> Unit,
     onBack: () -> Unit,
+    onEqualizer: () -> Unit,
     accountViewModel: AccountViewModel = hiltViewModel(),
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
@@ -90,6 +94,7 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val sleep by viewModel.sleep.collectAsStateWithLifecycle()
     val cacheBytes by viewModel.cacheBytes.collectAsStateWithLifecycle()
+    val downloadBytes by viewModel.downloadBytes.collectAsStateWithLifecycle()
 
     LargeTitleScreen(
         title = tr("Réglages", "Settings"),
@@ -127,6 +132,8 @@ fun SettingsScreen(
                 Toggle(tr("Enchaîner avec des titres similaires", "Keep playing similar songs"), settings.autoplay) {
                     viewModel.update { copy(autoplay = it) }
                 }
+                Divider()
+                Link(tr("Égaliseur", "Equalizer"), equalizerLabel(settings.eqPreset), onEqualizer)
             }
         }
 
@@ -167,6 +174,18 @@ fun SettingsScreen(
                 Toggle(tr("Mettre l'historique en pause", "Pause history"), settings.historyPaused) { viewModel.update { copy(historyPaused = it) } }
                 Divider()
                 Action(tr("Effacer l'historique", "Clear history")) { viewModel.clearHistory() }
+                Divider()
+                Action(tr("Remettre le récap à zéro", "Reset recap")) { viewModel.clearPlays() }
+            }
+        }
+
+        item(key = "downloads") {
+            Group(header = tr("Téléchargements", "Downloads")) {
+                Toggle(tr("Télécharger seulement en Wi-Fi", "Download on Wi-Fi only"), settings.downloadOnWifi) { viewModel.update { copy(downloadOnWifi = it) } }
+                Divider()
+                Value(tr("Espace utilisé", "Space used"), storageSize(downloadBytes))
+                Divider()
+                Action(tr("Supprimer les téléchargements", "Remove all downloads")) { viewModel.removeDownloads() }
             }
         }
 
@@ -264,35 +283,7 @@ private fun Choice(label: String, options: List<String>, selected: Int, onSelect
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 14.dp)) {
         AmText(label, maxLines = 1)
         Spacer(Modifier.height(10.dp))
-        Segmented(options, selected, onSelect)
-    }
-}
-
-@Composable
-private fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    val colors = AmTheme.colors
-    val position = animateFloatAsState(selected.toFloat(), spring(dampingRatio = 0.8f, stiffness = 460f), label = "segment")
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(colors.text.copy(alpha = 0.08f))
-            .slidingPill({ position.value }, options.size, if (colors.isDark) Color.White.copy(alpha = 0.17f) else Color.White, corner = 8.dp, inset = 2.dp),
-    ) {
-        options.forEachIndexed { index, option ->
-            Box(
-                Modifier.weight(1f).fillMaxHeight().pressable(scale = 0.96f, haptic = true, label = option) { onSelect(index) },
-                contentAlignment = Alignment.Center,
-            ) {
-                AmText(
-                    text = option,
-                    style = AmTheme.type.footnote.copy(fontWeight = if (index == selected) FontWeight.SemiBold else FontWeight.Medium),
-                    color = if (index == selected) colors.text else colors.textSecondary,
-                    maxLines = 1,
-                )
-            }
-        }
+        SegmentedControl(options, selected, onSelect = onSelect)
     }
 }
 
@@ -421,5 +412,24 @@ private fun AccountCard(account: YtAccount?, onSignOut: () -> Unit) {
         } else {
             AmText(tr("Déconnexion", "Sign out"), style = AmTheme.type.subhead, color = colors.accent)
         }
+    }
+}
+
+private fun equalizerLabel(preset: String): String = when (preset) {
+    "off" -> tr("Désactivé", "Off")
+    "custom" -> tr("Personnalisé", "Custom")
+    else -> EqualizerPresets.firstOrNull { it.id == preset }?.label ?: tr("Désactivé", "Off")
+}
+
+@Composable
+private fun Link(label: String, value: String, onClick: () -> Unit) {
+    val colors = AmTheme.colors
+    Row(
+        Modifier.fillMaxWidth().pressable(scale = 0.99f, label = label, onClick = onClick).heightIn(min = 50.dp).padding(start = 16.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AmText(label, maxLines = 1, modifier = Modifier.weight(1f))
+        AmText(value, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(end = 6.dp))
+        AmIcon(AmIcons.ChevronRight, tint = colors.textTertiary, size = 15.dp)
     }
 }

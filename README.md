@@ -14,11 +14,19 @@ Requires Android 9 or newer.
 - Synced lyrics, word by word when a source has them
 - Library: liked songs, playlists, albums, followed artists, history
 - Works without an account. Signing in to YouTube Music is optional and brings your library and recommendations
-- Settings: audio quality on Wi-Fi and mobile data, sleep timer, cache size, optional SponsorBlock, light and dark theme, French and English
+- Downloads for offline listening (songs, albums, playlists), optionally on Wi-Fi only
+- The queue and position are kept when the app is closed
+- Reorder your playlists, also on your YouTube Music account
+- Home screen widget and Android Auto support
+- Monthly and yearly listening recap, built from your local history
+- Share a few lines of lyrics as an image, or show a translation under each line
+- Settings: audio quality on Wi-Fi and mobile data, equalizer, sleep timer, cache size, optional SponsorBlock, light and dark theme, French and English
 
 ## Install
 
 Download the APK from the [releases](https://github.com/mochiiwuff/am-music/releases) page and open it on your phone. Each release lists the SHA-256 of the file.
+
+Android Auto only lists apps installed from the Play Store, unless "Unknown sources" is turned on in the Android Auto developer settings.
 
 To build it yourself you need JDK 17 and the Android SDK:
 
@@ -36,6 +44,7 @@ There are no ads, no analytics and no server of mine. The app only talks to:
 - YouTube and YouTube Music, for the catalogue and the audio
 - [LRCLIB](https://lrclib.net), LyricsPlus and BetterLyrics, for lyrics (they receive the title, artist, album and duration)
 - [SponsorBlock](https://sponsor.ajay.app), only if you turn on "Skip non-music parts" (it receives the first 4 characters of a hash of the video id)
+- Google Translate, only when you turn on lyrics translation (it receives the lyrics of the current song)
 - Google, only if you sign in
 
 Sign-in happens on Google's own page inside a WebView, so the app never sees your password. The resulting session is stored encrypted (AES-GCM, key in the Android Keystore) and is only sent to YouTube. Signing out deletes it. Android backups are disabled for the app.

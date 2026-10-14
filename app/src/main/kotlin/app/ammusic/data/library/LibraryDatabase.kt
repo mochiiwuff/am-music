@@ -1,6 +1,8 @@
 package app.ammusic.data.library
 
 import androidx.room.Dao
+import androidx.room.Embedded
+import androidx.room.Index
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Insert
@@ -68,6 +70,24 @@ object PlaylistKind {
 
 @Entity(tableName = "playlist_tracks", primaryKeys = ["playlistId", "trackId"])
 data class PlaylistTrackRow(val playlistId: String, val trackId: String, val position: Long, val setVideoId: String? = null)
+
+@Entity(tableName = "downloads")
+data class DownloadRow(@PrimaryKey val trackId: String, val state: Int, val bytes: Long, val addedAt: Long)
+
+object DownloadState {
+    const val Queued = 0
+
+    const val Running = 1
+
+    const val Done = 2
+
+    const val Failed = 3
+}
+
+@Entity(tableName = "plays", indices = [Index("startedAt")])
+data class PlayRow(@PrimaryKey(autoGenerate = true) val id: Long = 0, val trackId: String, val startedAt: Long, val listenedMs: Long)
+
+data class TrackPlays(@Embedded val track: TrackRow, val plays: Int, val listened: Long)
 
 @Dao
 abstract class LibraryDao {
@@ -227,6 +247,62 @@ abstract class LibraryDao {
         upsertPlaylistTracks(rows)
     }
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertTracksIfMissing(tracks: List<TrackRow>)
+
+    @Query("UPDATE playlist_tracks SET position = :position WHERE playlistId = :playlistId AND trackId = :trackId")
+    abstract suspend fun setPlaylistPosition(playlistId: String, trackId: String, position: Long)
+
+    @Transaction
+    open suspend fun reorderPlaylist(playlistId: String, trackIds: List<String>, base: Long) {
+        trackIds.forEachIndexed { index, id -> setPlaylistPosition(playlistId, id, base + index) }
+    }
+
+    @Query("SELECT trackId, setVideoId FROM playlist_tracks WHERE playlistId = :playlistId")
+    abstract suspend fun setVideoIds(playlistId: String): List<SetVideo>
+
+    @Query("SELECT * FROM downloads ORDER BY addedAt")
+    abstract fun downloads(): Flow<List<DownloadRow>>
+
+    @Query("SELECT tracks.* FROM downloads JOIN tracks ON tracks.id = downloads.trackId WHERE downloads.state = 2 ORDER BY downloads.addedAt DESC")
+    abstract fun downloadedTracks(): Flow<List<TrackRow>>
+
+    @Query("SELECT trackId FROM downloads WHERE state = 2")
+    abstract suspend fun completedDownloadIds(): List<String>
+
+    @Query("SELECT * FROM downloads WHERE state = 0 ORDER BY addedAt LIMIT 1")
+    abstract suspend fun nextQueuedDownload(): DownloadRow?
+
+    @Query("SELECT COUNT(*) FROM downloads WHERE state = 0 OR state = 1")
+    abstract suspend fun pendingDownloadCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertDownloads(rows: List<DownloadRow>)
+
+    @Query("UPDATE downloads SET state = :state, bytes = :bytes WHERE trackId = :trackId")
+    abstract suspend fun setDownloadState(trackId: String, state: Int, bytes: Long)
+
+    @Query("UPDATE downloads SET state = 0 WHERE state = 1 OR state = 3")
+    abstract suspend fun requeueDownloads()
+
+    @Query("DELETE FROM downloads WHERE trackId IN (:trackIds)")
+    abstract suspend fun deleteDownloads(trackIds: List<String>)
+
+    @Query("SELECT * FROM tracks WHERE id = :id")
+    abstract suspend fun track(id: String): TrackRow?
+
+    @Insert
+    abstract suspend fun insertPlay(row: PlayRow)
+
+    @Query(
+        "SELECT tracks.*, COUNT(*) AS plays, SUM(plays.listenedMs) AS listened FROM plays JOIN tracks ON tracks.id = plays.trackId " +
+            "WHERE plays.startedAt >= :since GROUP BY plays.trackId ORDER BY plays DESC, listened DESC",
+    )
+    abstract fun trackPlays(since: Long): Flow<List<TrackPlays>>
+
+    @Query("DELETE FROM plays")
+    abstract suspend fun clearPlays()
+
     @Transaction
     open suspend fun deletePlaylist(id: String) {
         clearPlaylistTracks(id)
@@ -240,11 +316,24 @@ val Migration1To2 = object : Migration(1, 2) {
     }
 }
 
+val Migration2To3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `downloads` (`trackId` TEXT NOT NULL, `state` INTEGER NOT NULL, `bytes` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`trackId`))")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `plays` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `trackId` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `listenedMs` INTEGER NOT NULL)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_plays_startedAt` ON `plays` (`startedAt`)")
+    }
+}
+
 @Database(
-    entities = [TrackRow::class, LikedRow::class, HistoryRow::class, AlbumRow::class, ArtistRow::class, PlaylistRow::class, PlaylistTrackRow::class],
-    version = 2,
+    entities = [
+        TrackRow::class, LikedRow::class, HistoryRow::class, AlbumRow::class, ArtistRow::class, PlaylistRow::class, PlaylistTrackRow::class,
+        DownloadRow::class, PlayRow::class,
+    ],
+    version = 3,
     exportSchema = false,
 )
 abstract class LibraryDatabase : RoomDatabase() {
     abstract fun dao(): LibraryDao
 }
+
+data class SetVideo(val trackId: String, val setVideoId: String?)

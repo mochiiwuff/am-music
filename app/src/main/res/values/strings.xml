@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">AM Music</string>
+    <string name="widget_description">Titre en cours et commandes de lecture</string>
+    <string name="widget_idle">Rien en lecture</string>
+    <string name="widget_cover">Pochette</string>
+    <string name="widget_previous">Titre précédent</string>
+    <string name="widget_play">Lecture ou pause</string>
+    <string name="widget_next">Titre suivant</string>
 </resources>

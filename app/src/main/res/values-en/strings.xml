@@ -1,0 +1,8 @@
+<resources>
+    <string name="widget_description">Now playing and playback controls</string>
+    <string name="widget_idle">Not playing</string>
+    <string name="widget_cover">Cover</string>
+    <string name="widget_previous">Previous song</string>
+    <string name="widget_play">Play or pause</string>
+    <string name="widget_next">Next song</string>
+</resources>

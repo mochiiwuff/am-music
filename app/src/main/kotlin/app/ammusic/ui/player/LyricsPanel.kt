@@ -2,6 +2,7 @@ package app.ammusic.ui.player
 
 import app.ammusic.youtube.tr
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -12,6 +13,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +42,9 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
@@ -57,9 +63,12 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -71,12 +80,14 @@ import app.ammusic.data.lyrics.LyricLine
 import app.ammusic.data.lyrics.Lyrics
 import app.ammusic.playback.PlayerState
 import app.ammusic.ui.PlayerViewModel
+import app.ammusic.ui.components.AmIcon
 import app.ammusic.ui.components.AmIcons
 import app.ammusic.ui.components.AmText
 import app.ammusic.ui.components.IconButton
 import app.ammusic.ui.components.pressable
 import app.ammusic.ui.theme.AmTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -102,7 +113,22 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
     val lyrics by player.lyrics.collectAsStateWithLifecycle()
     val settings by UserSettings.state.collectAsStateWithLifecycle()
     val style = LineStyles[settings.lyricsSize.coerceIn(0, LineStyles.lastIndex)]
+    val translation by player.translation.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var selecting by remember(state.track?.id) { mutableStateOf(false) }
+    var selected by remember(state.track?.id) { mutableStateOf(emptySet<Int>()) }
+    var sharing by remember { mutableStateOf(false) }
+    val synced = lyrics as? Lyrics.Synced
+    val stopSelecting = {
+        selecting = false
+        selected = emptySet()
+    }
     LaunchedEffect(state.track?.id) { player.loadLyrics() }
+    LaunchedEffect(synced, settings.translateLyrics) {
+        if (synced != null && settings.translateLyrics) player.loadTranslation(synced.lines.map { it.text })
+    }
+    BackHandler(enabled = selecting, onBack = stopSelecting)
 
     Column(
         Modifier
@@ -121,18 +147,63 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
                 AmText(state.track?.title.orEmpty(), style = AmTheme.type.headline, color = Color.White, maxLines = 1)
                 AmText(state.track?.artists.orEmpty(), style = AmTheme.type.subhead, color = Soft, maxLines = 1)
             }
+            if (synced != null && !selecting) {
+                IconButton(
+                    icon = AmIcons.Translate,
+                    label = if (settings.translateLyrics) tr("Masquer la traduction", "Hide translation") else tr("Traduire", "Translate"),
+                    onClick = { UserSettings.update { copy(translateLyrics = !translateLyrics) } },
+                    tint = if (settings.translateLyrics) Color.White else Soft,
+                )
+                IconButton(AmIcons.Share, label = tr("Partager des paroles", "Share lyrics"), onClick = { selecting = true }, tint = Soft)
+            }
             IconButton(AmIcons.ChevronDown, label = tr("Fermer les paroles", "Close lyrics"), onClick = onClose, tint = Color.White)
+        }
+        if (settings.translateLyrics && translation?.sameLanguage == true && !selecting) {
+            AmText(
+                text = tr("Ces paroles sont déjà en français.", "These lyrics are already in English."),
+                style = AmTheme.type.footnote,
+                color = Soft,
+                modifier = Modifier.padding(start = 24.dp, bottom = 4.dp),
+            )
         }
 
         Box(Modifier.weight(1f).fillMaxWidth().fadedEdges()) {
             when (val current = lyrics) {
                 null -> LyricsSkeleton()
-                is Lyrics.Synced -> SyncedLyrics(current.lines, player, style, settings.wordByWord)
+                is Lyrics.Synced -> SyncedLyrics(
+                    lines = current.lines,
+                    player = player,
+                    style = style,
+                    wordByWord = settings.wordByWord,
+                    translation = translation?.takeIf { settings.translateLyrics && !it.sameLanguage }?.lines,
+                    selecting = selecting,
+                    selected = selected,
+                    onToggle = { index -> selected = if (index in selected) selected - index else if (selected.size < MaxShared) selected + index else selected },
+                )
                 is Lyrics.Plain -> PlainLyrics(current.text)
                 Lyrics.None -> Message(tr("Pas de paroles trouvées pour ce titre.", "No lyrics found for this song."))
             }
         }
 
+        if (selecting) {
+            ShareBar(
+                count = selected.size,
+                busy = sharing,
+                onCancel = stopSelecting,
+                onShare = {
+                    val track = state.track
+                    val lines = synced?.lines
+                    if (track != null && lines != null && selected.isNotEmpty() && !sharing) {
+                        sharing = true
+                        scope.launch {
+                            runCatching { shareLyrics(context, track, selected.sorted().map { lines[it].text }) }
+                            sharing = false
+                            stopSelecting()
+                        }
+                    }
+                },
+            )
+        } else {
         Row(Modifier.fillMaxWidth().height(84.dp), Arrangement.Center, Alignment.CenterVertically) {
             IconButton(AmIcons.Previous, label = tr("Titre précédent", "Previous song"), onClick = player::previous, tint = Color.White, iconSize = 30.dp)
             Box(
@@ -142,6 +213,7 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
                 PlayPauseIcon(playing = state.isPlaying || state.isLoading, color = Color.White, size = 34.dp)
             }
             IconButton(AmIcons.Next, label = tr("Titre suivant", "Next song"), onClick = player::next, tint = if (state.hasNext) Color.White else Soft, iconSize = 30.dp)
+        }
         }
     }
 }
@@ -155,7 +227,16 @@ private fun Modifier.fadedEdges(): Modifier = graphicsLayer { compositingStrateg
 }
 
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel, style: TextStyle, wordByWord: Boolean) {
+private fun SyncedLyrics(
+    lines: List<LyricLine>,
+    player: PlayerViewModel,
+    style: TextStyle,
+    wordByWord: Boolean,
+    translation: List<String>?,
+    selecting: Boolean,
+    selected: Set<Int>,
+    onToggle: (Int) -> Unit,
+) {
     val list = rememberLazyListState()
     val dragged by list.interactionSource.collectIsDraggedAsState()
 
@@ -195,8 +276,8 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel, style:
 
         val touchedAt = remember { mutableLongStateOf(0L) }
         LaunchedEffect(dragged) { if (dragged) touchedAt.longValue = System.currentTimeMillis() }
-        LaunchedEffect(current, lines) {
-            if (current < 0 || dragged) return@LaunchedEffect
+        LaunchedEffect(current, lines, selecting) {
+            if (current < 0 || dragged || selecting) return@LaunchedEffect
             val wait = touchedAt.longValue + ResumeAfterMs - System.currentTimeMillis()
             if (wait > 0) delay(wait)
             val now = withFrameNanos { it }
@@ -226,9 +307,16 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel, style:
                     endMs = lines.getOrNull(index + 1)?.startMs ?: (line.startMs + 4_000L),
                     shift = { shift(index) },
                     position = { position.longValue },
+                    translation = translation?.getOrNull(index),
+                    selecting = selecting,
+                    chosen = index in selected,
                     onClick = {
-                        touchedAt.longValue = 0L
-                        player.seekTo(line.startMs)
+                        if (selecting) {
+                            if (line.text.isNotBlank()) onToggle(index)
+                        } else {
+                            touchedAt.longValue = 0L
+                            player.seekTo(line.startMs)
+                        }
                     },
                 )
             }
@@ -237,12 +325,25 @@ private fun SyncedLyrics(lines: List<LyricLine>, player: PlayerViewModel, style:
 }
 
 @Composable
-private fun LyricRow(line: LyricLine, style: TextStyle, wordByWord: Boolean, distance: Int, endMs: Long, shift: () -> Float, position: () -> Long, onClick: () -> Unit) {
-    val active = distance == 0
+private fun LyricRow(
+    line: LyricLine,
+    style: TextStyle,
+    wordByWord: Boolean,
+    distance: Int,
+    endMs: Long,
+    shift: () -> Float,
+    position: () -> Long,
+    translation: String?,
+    selecting: Boolean,
+    chosen: Boolean,
+    onClick: () -> Unit,
+) {
+    val playing = distance == 0
+    val active = if (selecting) chosen else playing
     val soft = spring<Float>(dampingRatio = 0.82f, stiffness = 120f)
     val light by animateFloatAsState(if (active) 1f else 0.34f, soft, label = "light")
     val size by animateFloatAsState(if (active) 1f else 0.92f, soft, label = "size")
-    val haze by animateDpAsState(if (active) 0.dp else (0.8f * distance.coerceAtMost(4)).dp, spring(stiffness = 120f), label = "haze")
+    val haze by animateDpAsState(if (active) 0.dp else if (selecting) 0.dp else (0.8f * distance.coerceAtMost(4)).dp, spring(stiffness = 120f), label = "haze")
 
     Box(
         Modifier
@@ -258,12 +359,13 @@ private fun LyricRow(line: LyricLine, style: TextStyle, wordByWord: Boolean, dis
             }
             .blur(haze, BlurredEdgeTreatment.Unbounded),
     ) {
+        Column {
         when {
-            line.text.isBlank() -> InterludeDots(active) {
+            line.text.isBlank() -> InterludeDots(playing && !selecting) {
                 ((position() - line.startMs).toFloat() / (endMs - line.startMs).coerceAtLeast(1)).coerceIn(0f, 1f)
             }
 
-            active && wordByWord && line.words.isNotEmpty() -> {
+            playing && !selecting && wordByWord && line.words.isNotEmpty() -> {
                 val now = position()
                 BasicText(
                     text = buildAnnotatedString {
@@ -285,6 +387,15 @@ private fun LyricRow(line: LyricLine, style: TextStyle, wordByWord: Boolean, dis
             }
 
             else -> BasicText(text = line.text, style = style, color = { Color.White })
+        }
+        if (!translation.isNullOrBlank() && line.text.isNotBlank()) {
+            BasicText(
+                text = translation,
+                style = style.copy(fontSize = style.fontSize * 0.58f, lineHeight = style.lineHeight * 0.62f, fontWeight = FontWeight.Medium),
+                color = { Color.White.copy(alpha = 0.62f) },
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         }
     }
 }
@@ -350,6 +461,42 @@ private fun LyricsSkeleton() {
     Column(Modifier.padding(start = 24.dp, top = 36.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         listOf(0.78f, 0.55f, 0.84f, 0.42f, 0.7f, 0.6f).forEach { width ->
             Box(Modifier.fillMaxWidth(width).height(24.dp).clip(RoundedCornerShape(8.dp)).drawBehind { drawRect(Color.White, alpha = pulse) })
+        }
+    }
+}
+
+private const val MaxShared = 6
+
+@Composable
+private fun ShareBar(count: Int, busy: Boolean, onCancel: () -> Unit, onShare: () -> Unit) {
+    val ready = count > 0 && !busy
+    val shown by animateFloatAsState(if (ready) 1f else 0.4f, spring(dampingRatio = 1f, stiffness = 420f), label = "share")
+    Row(Modifier.fillMaxWidth().height(84.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        AmText(
+            text = tr("Annuler", "Cancel"),
+            style = AmTheme.type.headline,
+            color = Color.White,
+            modifier = Modifier.pressable(label = tr("Annuler", "Cancel"), onClick = onCancel).padding(horizontal = 8.dp, vertical = 14.dp),
+        )
+        AmText(
+            text = if (count == 0) tr("Touchez des lignes", "Tap some lines") else tr("$count sur $MaxShared", "$count of $MaxShared"),
+            style = AmTheme.type.subhead,
+            color = Soft,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
+        Row(
+            Modifier
+                .height(44.dp)
+                .graphicsLayer { alpha = shown }
+                .pressable(haptic = true, label = tr("Partager", "Share")) { if (ready) onShare() }
+                .clip(CircleShape)
+                .background(Color.White)
+                .padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AmIcon(AmIcons.Share, tint = Color(0xFF141216), size = 18.dp)
+            AmText(tr("Partager", "Share"), style = AmTheme.type.headline, color = Color(0xFF141216), modifier = Modifier.padding(start = 8.dp))
         }
     }
 }

@@ -222,6 +222,10 @@ object YouTubeMusic {
         YouTube.removeFromPlaylist(playlistId, videoId, setVideoId).mapCatching { response -> response.acceptedBody() }.map { }
     }
 
+    suspend fun movePlaylistTrack(playlistId: String, setVideoId: String, beforeSetVideoId: String?): Result<Unit> = io {
+        YouTube.moveSongPlaylist(playlistId, setVideoId, beforeSetVideoId).mapCatching { response -> response.acceptedBody() }.map { }
+    }
+
     private suspend fun HttpResponse.acceptedBody(): String = bodyAsText().also { playlistEditSetVideoId(it) }
 
     private val AutoPlaylists = setOf("LM", "SE")

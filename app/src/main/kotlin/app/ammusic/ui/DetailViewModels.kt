@@ -114,6 +114,8 @@ class CollectionViewModel @Inject constructor(
 
     fun delete() = library.deletePlaylist(route.id)
 
+    fun reorder(tracks: List<YtTrack>) = library.reorderPlaylist(route.id, tracks)
+
     fun remove(track: YtTrack) {
         if (!mirrored) _state.update { it.copy(tracks = it.tracks - track) }
         library.removeFromPlaylist(route.id, track)

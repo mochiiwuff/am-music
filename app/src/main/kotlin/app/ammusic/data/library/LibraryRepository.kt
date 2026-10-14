@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,7 +60,7 @@ fun playlistCover(thumbnails: List<String>): String? {
 @Singleton
 class LibraryRepository @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences("library", Context.MODE_PRIVATE)
-    private val dao = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").addMigrations(Migration1To2).build().dao()
+    internal val dao = Room.databaseBuilder(context, LibraryDatabase::class.java, "library.db").addMigrations(Migration1To2, Migration2To3).build().dao()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastSync = 0L
     private val refreshedAt = ConcurrentHashMap<String, Long>()
@@ -193,6 +194,37 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
         }
     }
 
+    fun reorderPlaylist(playlistId: String, ordered: List<YtTrack>) = scope.launch {
+        val before = dao.playlistTracks(playlistId).first().map { it.id }
+        val after = ordered.map { it.id }.filter { it in before }
+        if (before == after || after.size != before.size) return@launch
+        dao.reorderPlaylist(playlistId, after, now())
+        refreshSummary(playlistId)
+        if (isLocal(playlistId)) return@launch
+        val ids = dao.setVideoIds(playlistId).associate { it.trackId to it.setVideoId }
+        if (after.any { ids[it] == null }) {
+            Log.w(Tag, "réordonner $playlistId : identifiants de position manquants")
+            notify(tr("L'ordre n'a pas pu être envoyé à votre compte", "The new order could not be sent to your account"), failed = true)
+            return@launch
+        }
+        val current = before.toMutableList()
+        for (index in after.indices.reversed()) {
+            val id = after[index]
+            val successor = after.getOrNull(index + 1)
+            val at = current.indexOf(id)
+            if (current.getOrNull(at + 1) == successor) continue
+            val moved = twice { YouTubeMusic.movePlaylistTrack(playlistId, ids.getValue(id)!!, successor?.let { ids.getValue(it) }) }
+            if (moved.isFailure) {
+                Log.w(Tag, "réordonner $playlistId : ${moved.exceptionOrNull()?.message?.take(200)}")
+                notify(tr("L'ordre n'a pas pu être envoyé à votre compte", "The new order could not be sent to your account"), failed = true)
+                return@launch
+            }
+            current.removeAt(at)
+            current.add(successor?.let { current.indexOf(it) } ?: current.size, id)
+        }
+        refreshedAt[playlistId] = now()
+    }
+
     fun playlistWithTracks(id: String): Flow<Pair<YtPlaylist?, List<YtTrack>>> =
         combine(dao.playlist(id), dao.playlistTracks(id)) { row, tracks -> row?.toPlaylist() to tracks.map { it.toTrack() } }
 
@@ -244,8 +276,38 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
     }
 
     fun recordPlay(track: YtTrack) = scope.launch {
-        dao.upsertTracks(listOf(track.toRow()))
+        remember(track)
         dao.upsertHistory(HistoryRow(track.id, now()))
+    }
+
+    fun recordListen(track: YtTrack, startedAt: Long, listenedMs: Long) = scope.launch {
+        remember(track)
+        dao.insertPlay(PlayRow(trackId = track.id, startedAt = startedAt, listenedMs = listenedMs))
+    }
+
+    fun trackPlays(since: Long): Flow<List<Pair<YtTrack, TrackPlays>>> = dao.trackPlays(since).map { rows -> rows.map { it.track.toTrack() to it } }
+
+    fun clearPlays() = scope.launch { dao.clearPlays() }
+
+    private suspend fun remember(track: YtTrack) {
+        val known = dao.track(track.id)
+        if (known == null) {
+            dao.upsertTracks(listOf(track.toRow()))
+        } else {
+            dao.upsertTracks(
+                listOf(
+                    known.copy(
+                        title = track.title.ifBlank { known.title },
+                        artists = track.artists.ifBlank { known.artists },
+                        album = track.album ?: known.album,
+                        thumbnail = track.thumbnail ?: known.thumbnail,
+                        durationSeconds = track.durationSeconds ?: known.durationSeconds,
+                        artistId = track.artistId ?: known.artistId,
+                        albumId = track.albumId ?: known.albumId,
+                    ),
+                ),
+            )
+        }
     }
 
     fun clearHistory() = scope.launch { dao.clearHistory() }
@@ -318,9 +380,9 @@ class LibraryRepository @Inject constructor(@ApplicationContext context: Context
     private fun now() = System.currentTimeMillis()
 }
 
-private fun YtTrack.toRow() = TrackRow(id, title, artists, album, thumbnail, durationSeconds, artistId, albumId)
+internal fun YtTrack.toRow() = TrackRow(id, title, artists, album, thumbnail, durationSeconds, artistId, albumId)
 
-private fun TrackRow.toTrack() = YtTrack(id, title, artists, album, thumbnail, durationSeconds, artistId, albumId)
+internal fun TrackRow.toTrack() = YtTrack(id, title, artists, album, thumbnail, durationSeconds, artistId, albumId)
 
 private fun YtAlbum.toRow(addedAt: Long, local: Boolean) = AlbumRow(id, playlistId, title, subtitle, thumbnail, artistId, year, addedAt, local)
 
