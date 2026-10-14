@@ -6,6 +6,19 @@ I made it for myself because I wanted a music app that is pleasant to open. The 
 
 Requires Android 9 or newer.
 
+<p>
+  <img src="docs/screenshots/home.jpg" width="24%" alt="Home">
+  <img src="docs/screenshots/album.jpg" width="24%" alt="Album">
+  <img src="docs/screenshots/player.jpg" width="24%" alt="Player">
+  <img src="docs/screenshots/lyrics.jpg" width="24%" alt="Lyrics with translation">
+</p>
+<p>
+  <img src="docs/screenshots/share.jpg" width="24%" alt="Lyrics card">
+  <img src="docs/screenshots/library.jpg" width="24%" alt="Library">
+  <img src="docs/screenshots/settings.jpg" width="24%" alt="Settings">
+  <img src="docs/screenshots/equalizer.jpg" width="24%" alt="Equalizer">
+</p>
+
 ## What it does
 
 - Background playback with notification, lock screen and headset controls

@@ -220,7 +220,7 @@ private fun CurveCard(gains: List<Int>, enabled: Boolean, onChange: (Int, Int) -
                         textAlign = TextAlign.Center,
                     )
                     AmText(
-                        text = if (hz >= 1000) "${hz / 1000}${if (hz % 1000 >= 100) "," + (hz % 1000) / 100 else ""} kHz" else "$hz Hz",
+                        text = if (hz >= 1000) "${hz / 1000}${if (hz % 1000 >= 100) tr(",", ".") + (hz % 1000) / 100 else ""} kHz" else "$hz Hz",
                         style = AmTheme.type.caption.copy(fontSize = 11.sp),
                         color = colors.textSecondary,
                         textAlign = TextAlign.Center,

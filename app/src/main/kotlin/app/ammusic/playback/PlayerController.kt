@@ -340,7 +340,7 @@ class PlayerController @Inject constructor(
             hasNext = player.hasNextMediaItem(),
             hasPrevious = player.hasPreviousMediaItem(),
             failed = player.playerError != null,
-            durationMs = player.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L,
+            durationMs = player.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: current?.durationSeconds?.times(1000L) ?: 0L,
             queue = queue,
             index = player.currentMediaItemIndex,
             shuffle = player.shuffleModeEnabled,

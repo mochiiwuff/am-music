@@ -529,7 +529,7 @@ private fun SharedArtwork(
                     shadowElevation = 28.dp.toPx() * p * (1f - q) * (1f - away)
                     shape = RoundedCornerShape(corner)
                     clip = true
-                    alpha = 1f - away * 0.55f
+                    alpha = if (ShareOverlay.visible) 0f else 1f - away * 0.55f
                     val shrink = 1f - 0.08f * away
                     scaleX = shrink
                     scaleY = shrink

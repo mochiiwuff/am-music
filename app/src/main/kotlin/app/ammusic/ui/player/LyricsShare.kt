@@ -18,6 +18,9 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
@@ -244,4 +247,8 @@ private fun grain(): Bitmap {
         (10 shl 24) or (value shl 16) or (value shl 8) or value
     }
     return Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
+}
+
+internal object ShareOverlay {
+    var visible by mutableStateOf(false)
 }

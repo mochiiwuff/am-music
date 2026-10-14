@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -548,11 +549,15 @@ private fun SharePreview(image: Bitmap?, onCancel: () -> Unit, onShare: (Bitmap)
         }
     }
     val current = shown ?: return
+    DisposableEffect(Unit) {
+        ShareOverlay.visible = true
+        onDispose { ShareOverlay.visible = false }
+    }
     BackHandler(enabled = image != null, onBack = onCancel)
     Box(
         Modifier
             .fillMaxSize()
-            .drawBehind { drawRect(Color.Black, alpha = 0.72f * progress.value.coerceIn(0f, 1f)) }
+            .drawBehind { drawRect(Color.Black, alpha = 0.9f * progress.value.coerceIn(0f, 1f)) }
             .pointerInput(Unit) { detectTapGestures { onCancel() } }
             .statusBarsPadding()
             .navigationBarsPadding(),
