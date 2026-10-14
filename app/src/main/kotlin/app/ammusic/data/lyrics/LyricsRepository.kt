@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -63,22 +64,36 @@ class LyricsRepository @Inject constructor() {
     }
 
     suspend fun translate(lines: List<String>, target: String): Translation? = withContext(Dispatchers.IO) {
-        val text = lines.joinToString("\n")
-        if (text.isBlank()) return@withContext null
-        val key = target + ":" + text.hashCode()
+        val wanted = lines.withIndex().filter { it.value.isNotBlank() }
+        if (wanted.isEmpty()) return@withContext null
+        val key = target + ":" + lines.hashCode()
         synchronized(translations) { translations[key] }?.let { return@withContext it }
-        val url = "https://translate.googleapis.com/translate_a/single".toHttpUrl().newBuilder()
+        val url = "https://translate.googleapis.com/translate_a/t".toHttpUrl().newBuilder()
             .addQueryParameter("client", "gtx")
             .addQueryParameter("sl", "auto")
             .addQueryParameter("tl", target)
-            .addQueryParameter("dt", "t")
             .build()
-        val request = Request.Builder().url(url).post(FormBody.Builder().add("q", text).build()).build()
-        val body = runCatching { client.newCall(request).execute().use { if (it.isSuccessful) it.body?.string() else null } }
-            .onFailure { Log.w(Tag, "traduction : ${it.javaClass.simpleName}") }
-            .getOrNull() ?: return@withContext null
-        val result = runCatching { parseTranslation(body, lines.size, target) }.onFailure { Log.w(Tag, "traduction illisible") }.getOrNull()
-        if (result != null) synchronized(translations) { translations[key] = result }
+        val form = FormBody.Builder().apply { wanted.forEach { add("q", it.value) } }.build()
+        val request = Request.Builder().url(url).post(form).build()
+        val body = runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) Log.w(Tag, "traduction : réponse ${response.code}")
+                if (response.isSuccessful) response.body?.string() else null
+            }
+        }.onFailure { Log.w(Tag, "traduction : ${it.javaClass.simpleName}") }.getOrNull() ?: return@withContext null
+        val parsed = runCatching { parseTranslation(body, wanted.size, target) }.onFailure { Log.w(Tag, "traduction illisible") }.getOrNull()
+        if (parsed == null) {
+            Log.w(Tag, "traduction : réponse inattendue")
+            return@withContext null
+        }
+        val result = if (parsed.sameLanguage) {
+            parsed
+        } else {
+            val byLine = wanted.map { it.index }.zip(parsed.lines).toMap()
+            Translation(List(lines.size) { byLine[it].orEmpty() }, sameLanguage = false)
+        }
+        Log.d(Tag, "traduction : ${wanted.size} lignes${if (result.sameLanguage) ", déjà dans la langue" else ""}")
+        synchronized(translations) { translations[key] = result }
         result
     }
 
@@ -189,10 +204,15 @@ class LyricsRepository @Inject constructor() {
 class Translation(val lines: List<String>, val sameLanguage: Boolean)
 
 internal fun parseTranslation(body: String, expected: Int, target: String): Translation? {
-    val root = Json.parseToJsonElement(body).jsonArray
-    val source = root.getOrNull(2)?.jsonPrimitive?.contentOrNull
-    if (source != null && source.substringBefore('-') == target) return Translation(emptyList(), sameLanguage = true)
-    val text = root[0].jsonArray.joinToString("") { segment -> segment.jsonArray[0].jsonPrimitive.contentOrNull.orEmpty() }
-    val lines = text.split("\n").map { it.trim() }
-    return if (lines.size == expected) Translation(lines, sameLanguage = false) else null
+    val root = Json.parseToJsonElement(body)
+    val items = when {
+        root is JsonArray && root.all { it is JsonArray } -> root.map { it.jsonArray }
+        root is JsonArray -> listOf(root)
+        else -> return null
+    }
+    val texts = items.map { it.getOrNull(0)?.jsonPrimitive?.contentOrNull.orEmpty().trim() }
+    val sources = items.mapNotNull { it.getOrNull(1)?.jsonPrimitive?.contentOrNull?.substringBefore('-') }
+    if (texts.size != expected) return null
+    if (sources.isNotEmpty() && sources.count { it == target } * 2 > sources.size) return Translation(emptyList(), sameLanguage = true)
+    return Translation(texts, sameLanguage = false)
 }

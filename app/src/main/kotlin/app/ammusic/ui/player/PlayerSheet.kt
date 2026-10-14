@@ -346,7 +346,7 @@ private fun PlayerContent(
 }
 
 @Composable
-private fun ProgressSection(trackId: String, playing: Boolean, durationMs: Long, player: PlayerViewModel) {
+internal fun ProgressSection(trackId: String, playing: Boolean, durationMs: Long, player: PlayerViewModel) {
     var position by remember(trackId) { mutableLongStateOf(player.positionMs) }
     var seeking by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(trackId, playing) {

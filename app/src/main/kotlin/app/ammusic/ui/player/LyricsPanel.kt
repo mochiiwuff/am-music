@@ -3,6 +3,9 @@ package app.ammusic.ui.player
 import app.ammusic.youtube.tr
 
 import androidx.activity.compose.BackHandler
+import android.graphics.Bitmap
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Image
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -28,6 +31,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -55,12 +60,15 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -119,6 +127,7 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
     var selecting by remember(state.track?.id) { mutableStateOf(false) }
     var selected by remember(state.track?.id) { mutableStateOf(emptySet<Int>()) }
     var sharing by remember { mutableStateOf(false) }
+    var preview by remember { mutableStateOf<Bitmap?>(null) }
     val synced = lyrics as? Lyrics.Synced
     val stopSelecting = {
         selecting = false
@@ -130,6 +139,7 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
     }
     BackHandler(enabled = selecting, onBack = stopSelecting)
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -196,14 +206,18 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
                     if (track != null && lines != null && selected.isNotEmpty() && !sharing) {
                         sharing = true
                         scope.launch {
-                            runCatching { shareLyrics(context, track, selected.sorted().map { lines[it].text }) }
+                            preview = runCatching { renderLyricsCard(context, track, selected.sorted().map { lines[it].text }) }.getOrNull()
                             sharing = false
-                            stopSelecting()
                         }
                     }
                 },
             )
         } else {
+        state.track?.let { track ->
+            Box(Modifier.padding(start = 28.dp, end = 28.dp, top = 6.dp)) {
+                ProgressSection(track.id, state.isPlaying, state.durationMs, player)
+            }
+        }
         Row(Modifier.fillMaxWidth().height(84.dp), Arrangement.Center, Alignment.CenterVertically) {
             IconButton(AmIcons.Previous, label = tr("Titre précédent", "Previous song"), onClick = player::previous, tint = Color.White, iconSize = 30.dp)
             Box(
@@ -215,6 +229,17 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
             IconButton(AmIcons.Next, label = tr("Titre suivant", "Next song"), onClick = player::next, tint = if (state.hasNext) Color.White else Soft, iconSize = 30.dp)
         }
         }
+    }
+    SharePreview(
+        image = preview,
+        onCancel = { preview = null },
+        onShare = { image ->
+            val track = state.track
+            if (track != null) runCatching { shareCard(context, image, track) }
+            preview = null
+            stopSelecting()
+        },
+    )
     }
 }
 
@@ -497,6 +522,79 @@ private fun ShareBar(count: Int, busy: Boolean, onCancel: () -> Unit, onShare: (
         ) {
             AmIcon(AmIcons.Share, tint = Color(0xFF141216), size = 18.dp)
             AmText(tr("Partager", "Share"), style = AmTheme.type.headline, color = Color(0xFF141216), modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun SharePreview(image: Bitmap?, onCancel: () -> Unit, onShare: (Bitmap) -> Unit) {
+    var shown by remember { mutableStateOf<Bitmap?>(null) }
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(image) {
+        if (image != null) {
+            shown = image
+            progress.snapTo(0f)
+            progress.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f))
+        } else {
+            progress.animateTo(0f, spring(dampingRatio = 1f, stiffness = 520f))
+            shown = null
+        }
+    }
+    val current = shown ?: return
+    BackHandler(enabled = image != null, onBack = onCancel)
+    Box(
+        Modifier
+            .fillMaxSize()
+            .drawBehind { drawRect(Color.Black, alpha = 0.72f * progress.value.coerceIn(0f, 1f)) }
+            .pointerInput(Unit) { detectTapGestures { onCancel() } }
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+    ) {
+        Image(
+            bitmap = current.asImageBitmap(),
+            contentDescription = tr("Aperçu de la carte", "Card preview"),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(start = 40.dp, end = 40.dp, top = 24.dp, bottom = 110.dp)
+                .graphicsLayer {
+                    val p = progress.value
+                    alpha = p.coerceIn(0f, 1f)
+                    scaleX = 0.86f + 0.14f * p
+                    scaleY = scaleX
+                    translationY = (1f - p) * 40.dp.toPx()
+                }
+                .shadow(30.dp, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(18.dp)),
+        )
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(84.dp)
+                .padding(horizontal = 20.dp)
+                .graphicsLayer { alpha = progress.value.coerceIn(0f, 1f) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AmText(
+                text = tr("Annuler", "Cancel"),
+                style = AmTheme.type.headline,
+                color = Color.White,
+                modifier = Modifier.pressable(label = tr("Annuler", "Cancel"), onClick = onCancel).padding(horizontal = 8.dp, vertical = 14.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            Row(
+                Modifier
+                    .height(48.dp)
+                    .pressable(haptic = true, label = tr("Partager", "Share")) { onShare(current) }
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .padding(horizontal = 22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AmIcon(AmIcons.Share, tint = Color(0xFF141216), size = 18.dp)
+                AmText(tr("Partager", "Share"), style = AmTheme.type.headline, color = Color(0xFF141216), modifier = Modifier.padding(start = 8.dp))
+            }
         }
     }
 }

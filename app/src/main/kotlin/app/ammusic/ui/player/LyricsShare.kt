@@ -3,11 +3,13 @@ package app.ammusic.ui.player
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -17,6 +19,8 @@ import android.text.TextPaint
 import android.text.TextUtils
 import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
+import androidx.palette.graphics.Palette
 import app.ammusic.R
 import app.ammusic.youtube.model.YtTrack
 import app.ammusic.youtube.model.thumbnailAt
@@ -31,103 +35,157 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 private const val Width = 1080
-private const val Height = 1350
-private const val Margin = 84f
+private const val Height = 1920
+private const val CardMargin = 90f
+private const val Padding = 64f
+private const val CoverSize = 128f
+private const val Radius = 56f
 
-suspend fun shareLyrics(context: Context, track: YtTrack, lines: List<String>) {
-    val file = withContext(Dispatchers.Default) {
-        val cover = track.thumbnail?.let { url ->
-            val request = ImageRequest.Builder(context).data(url.thumbnailAt(544)).allowHardware(false).build()
-            (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toBitmap()
-        }
-        val card = drawCard(context, track, lines, cover)
-        val folder = File(context.cacheDir, "shared").apply { mkdirs() }
-        File(folder, "paroles.png").also { target -> target.outputStream().use { card.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+suspend fun renderLyricsCard(context: Context, track: YtTrack, lines: List<String>): Bitmap = withContext(Dispatchers.Default) {
+    val cover = track.thumbnail?.let { url ->
+        val request = ImageRequest.Builder(context).data(url.thumbnailAt(544)).allowHardware(false).build()
+        (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toBitmap()
     }
+    drawCard(context, track, lines, cover)
+}
+
+fun shareCard(context: Context, card: Bitmap, track: YtTrack) {
+    val folder = File(context.cacheDir, "shared").apply { mkdirs() }
+    folder.listFiles()?.forEach { it.delete() }
+    val file = File(folder, "paroles-${System.currentTimeMillis()}.jpg")
+    file.outputStream().use { card.compress(Bitmap.CompressFormat.JPEG, 95, it) }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
     val send = Intent(Intent.ACTION_SEND)
-        .setType("image/png")
+        .setType("image/jpeg")
         .putExtra(Intent.EXTRA_STREAM, uri)
-        .putExtra(Intent.EXTRA_TEXT, "${track.title} · ${track.artists}")
+        .putExtra(Intent.EXTRA_TITLE, "${track.title} · ${track.artists}")
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     send.clipData = ClipData.newRawUri(null, uri)
-    context.startActivity(Intent.createChooser(send, tr("Partager les paroles", "Share lyrics")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    context.packageManager.queryIntentActivities(send, PackageManager.MATCH_DEFAULT_ONLY).forEach { target ->
+        context.grantUriPermission(target.activityInfo.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    val chooser = Intent.createChooser(send, tr("Partager les paroles", "Share lyrics"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    chooser.clipData = send.clipData
+    context.startActivity(chooser)
+}
+
+private fun cardColor(cover: Bitmap?): Int {
+    if (cover == null) return 0xFF3A1F2C.toInt()
+    val palette = Palette.from(cover).generate()
+    val picked = palette.getVibrantColor(palette.getMutedColor(palette.getDominantColor(0xFF3A1F2C.toInt())))
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(picked, hsl)
+    if (hsl[1] > 0.08f) hsl[1] = hsl[1].coerceIn(0.4f, 0.75f)
+    hsl[2] = hsl[2].coerceIn(0.24f, 0.34f)
+    return ColorUtils.HSLToColor(hsl)
 }
 
 private fun drawCard(context: Context, track: YtTrack, lines: List<String>, cover: Bitmap?): Bitmap {
     val bitmap = Bitmap.createBitmap(Width, Height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     val base = ResourcesCompat.getFont(context, R.font.inter) ?: Typeface.DEFAULT
-    val bold = Typeface.create(base, 700, false)
-    val medium = Typeface.create(base, 500, false)
+    val tint = cardColor(cover)
 
     if (cover != null) {
-        val tiny = Bitmap.createScaledBitmap(cover, 12, 15, true)
-        val soft = Bitmap.createScaledBitmap(tiny, Width / 8, Height / 8, true)
-        canvas.drawBitmap(Bitmap.createScaledBitmap(soft, Width, Height, true), 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        val tiny = Bitmap.createScaledBitmap(cover, 9, 16, true)
+        val step = Bitmap.createScaledBitmap(tiny, 72, 128, true)
+        canvas.drawBitmap(Bitmap.createScaledBitmap(step, Width, Height, true), 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
     } else {
-        canvas.drawColor(0xFF2B1F28.toInt())
+        canvas.drawColor(tint)
     }
-    val shade = Paint().apply {
-        shader = LinearGradient(0f, 0f, 0f, Height.toFloat(), intArrayOf(0x59000000, 0x8C000000.toInt(), 0xB3000000.toInt()), null, Shader.TileMode.CLAMP)
-    }
-    canvas.drawRect(0f, 0f, Width.toFloat(), Height.toFloat(), shade)
+    canvas.drawRect(
+        0f, 0f, Width.toFloat(), Height.toFloat(),
+        Paint().apply { shader = LinearGradient(0f, 0f, 0f, Height.toFloat(), 0x40000000, 0x99000000.toInt(), Shader.TileMode.CLAMP) },
+    )
+    canvas.drawRect(
+        0f, 0f, Width.toFloat(), Height.toFloat(),
+        Paint().apply { shader = RadialGradient(Width / 2f, Height / 2f, Height * 0.75f, 0x00000000, 0x73000000, Shader.TileMode.CLAMP) },
+    )
 
-    val coverSize = 132f
-    if (cover != null) {
-        val frame = RectF(Margin, Margin, Margin + coverSize, Margin + coverSize)
-        canvas.save()
-        canvas.clipPath(Path().apply { addRoundRect(frame, 20f, 20f, Path.Direction.CW) })
-        canvas.drawBitmap(cover, null, frame, Paint(Paint.FILTER_BITMAP_FLAG))
-        canvas.restore()
-    }
-    val textLeft = if (cover != null) Margin + coverSize + 32f else Margin
-    val textWidth = (Width - textLeft - Margin).toInt()
-    val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFFFFFFFF.toInt()
-        textSize = 42f
-        typeface = bold
-        letterSpacing = -0.01f
-    }
-    val artistPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xB3FFFFFF.toInt()
-        textSize = 34f
-        typeface = medium
-    }
-    val headerMiddle = Margin + coverSize / 2f
-    canvas.drawText(TextUtils.ellipsize(track.title, titlePaint, textWidth.toFloat(), TextUtils.TruncateAt.END).toString(), textLeft, headerMiddle - 8f, titlePaint)
-    canvas.drawText(TextUtils.ellipsize(track.artists, artistPaint, textWidth.toFloat(), TextUtils.TruncateAt.END).toString(), textLeft, headerMiddle + 40f, artistPaint)
-
-    val lyricsTop = Margin + coverSize + 96f
-    val available = Height - lyricsTop - Margin - 70f
-    val lyricsWidth = (Width - 2 * Margin).toInt()
+    val cardWidth = Width - 2 * CardMargin
+    val inner = (cardWidth - 2 * Padding).toInt()
     val text = lines.joinToString("\n")
-    var size = 76f
-    var layout: StaticLayout
+    var size = 82f
+    var lyrics: StaticLayout
     do {
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFFFFFFF.toInt()
             textSize = size
-            typeface = bold
-            letterSpacing = -0.02f
+            typeface = base
+            fontVariationSettings = "'wght' 760"
+            letterSpacing = -0.025f
         }
-        layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, lyricsWidth)
+        lyrics = StaticLayout.Builder.obtain(text, 0, text.length, paint, inner)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(0f, 1.12f)
+            .setLineSpacing(0f, 1.08f)
             .setIncludePad(false)
             .build()
         size -= 4f
-    } while (layout.height > available && size > 36f)
+    } while (lyrics.height > 860 && size > 40f)
+
+    val headerGap = 60f
+    val footerGap = 72f
+    val footerHeight = 34f
+    val cardHeight = Padding + CoverSize + headerGap + lyrics.height + footerGap + footerHeight + Padding
+    val top = (Height - cardHeight) / 2f
+    val card = RectF(CardMargin, top, CardMargin + cardWidth, top + cardHeight)
+
+    canvas.drawRoundRect(card, Radius, Radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = tint
+        setShadowLayer(70f, 0f, 24f, 0x80000000.toInt())
+    })
+    canvas.drawRoundRect(card, Radius, Radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = LinearGradient(card.left, card.top, card.right, card.bottom, 0x1FFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+    })
+
+    val left = card.left + Padding
+    var y = card.top + Padding
+    if (cover != null) {
+        val frame = RectF(left, y, left + CoverSize, y + CoverSize)
+        canvas.save()
+        canvas.clipPath(Path().apply { addRoundRect(frame, 18f, 18f, Path.Direction.CW) })
+        canvas.drawBitmap(cover, null, frame, Paint(Paint.FILTER_BITMAP_FLAG))
+        canvas.restore()
+    }
+    val textLeft = if (cover != null) left + CoverSize + 30f else left
+    val textWidth = card.right - Padding - textLeft
+    val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt()
+        textSize = 40f
+        typeface = base
+        fontVariationSettings = "'wght' 620"
+        letterSpacing = -0.01f
+    }
+    val artistPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xBFFFFFFF.toInt()
+        textSize = 32f
+        typeface = base
+        fontVariationSettings = "'wght' 500"
+    }
+    val middle = y + CoverSize / 2f
+    canvas.drawText(TextUtils.ellipsize(track.title, titlePaint, textWidth, TextUtils.TruncateAt.END).toString(), textLeft, middle - 6f, titlePaint)
+    canvas.drawText(TextUtils.ellipsize(track.artists, artistPaint, textWidth, TextUtils.TruncateAt.END).toString(), textLeft, middle + 38f, artistPaint)
+
+    y += CoverSize + headerGap
     canvas.save()
-    canvas.translate(Margin, lyricsTop + ((available - layout.height) / 2f).coerceAtLeast(0f))
-    layout.draw(canvas)
+    canvas.translate(left, y)
+    lyrics.draw(canvas)
     canvas.restore()
 
-    val mark = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x99FFFFFF.toInt()
-        textSize = 28f
-        typeface = medium
+    y += lyrics.height + footerGap
+    val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xD9FFFFFF.toInt() }
+    listOf(0.55f, 1f, 0.75f).forEachIndexed { index, height ->
+        val barLeft = left + index * 13f
+        val barTop = y + footerHeight * (1f - height)
+        canvas.drawRoundRect(RectF(barLeft, barTop, barLeft + 8f, y + footerHeight), 4f, 4f, barPaint)
     }
-    canvas.drawText("AM Music", Margin, Height - Margin + 6f, mark)
+    val mark = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xD9FFFFFF.toInt()
+        textSize = 30f
+        typeface = base
+        fontVariationSettings = "'wght' 620"
+    }
+    canvas.drawText("AM Music", left + 50f, y + footerHeight - 4f, mark)
     return bitmap
 }

@@ -68,7 +68,9 @@ class PlayerViewModel @Inject constructor(
         translationFor = key
         viewModelScope.launch {
             val result = lyricsRepository.translate(lines, if (isFrench) "fr" else "en")
-            if (translationFor == key) _translation.value = result
+            if (translationFor != key) return@launch
+            _translation.value = result
+            if (result == null) translationFor = null
         }
     }
 
