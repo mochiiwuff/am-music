@@ -86,6 +86,12 @@ import app.ammusic.ui.theme.AmTheme
 import app.ammusic.youtube.model.YtTrack
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
@@ -237,13 +243,15 @@ fun PlayerSheet(sheet: PlayerSheetState, state: PlayerState, player: PlayerViewM
             sheet = sheet,
             queue = { max(queue.value, lyrics.value) },
             track = track,
+            index = state.index,
             playing = state.isPlaying || state.isLoading,
             fullArt = fullArt,
             queueArt = queueArt,
             screenWidth = width,
-            canSkip = state.hasNext,
+            canNext = state.hasNext,
+            canPrevious = state.hasPrevious,
             onNext = player::next,
-            onPrevious = player::previous,
+            onPrevious = player::previousTrack,
         )
     }
 }
@@ -307,14 +315,20 @@ private fun PlayerContent(
             ProgressSection(track.id, state.isPlaying, state.durationMs, player)
 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
-                BigButton(AmIcons.Previous, tr("Titre précédent", "Previous song"), player::previous)
+                BigButton(AmIcons.Previous, tr("Titre précédent", "Previous song"), {
+                    SkipHint.mark(-1)
+                    player.previous()
+                })
                 Box(
                     Modifier.size(84.dp).pressable(scale = 0.86f, haptic = true, label = if (active) "Pause" else tr("Lecture", "Play"), onClick = player::toggle),
                     contentAlignment = Alignment.Center,
                 ) {
                     PlayPauseIcon(playing = active, color = Color.White, size = 60.dp)
                 }
-                BigButton(AmIcons.Next, tr("Titre suivant", "Next song"), player::next, enabled = state.hasNext)
+                BigButton(AmIcons.Next, tr("Titre suivant", "Next song"), {
+                    SkipHint.mark(1)
+                    player.next()
+                }, enabled = state.hasNext)
             }
 
             val (volume, setVolume) = rememberSystemVolume()
@@ -356,10 +370,15 @@ internal fun ProgressSection(trackId: String, playing: Boolean, durationMs: Long
         }
     }
     val shown = seeking?.let { (it * durationMs).toLong() } ?: position.coerceAtMost(durationMs.coerceAtLeast(position))
+    val target = if (durationMs > 0) shown / durationMs.toFloat() else 0f
+    val bar = remember { Animatable(target) }
+    LaunchedEffect(target, seeking != null) {
+        if (seeking != null || abs(target - bar.value) < 0.02f) bar.snapTo(target) else bar.animateTo(target, spring(dampingRatio = 1f, stiffness = 160f))
+    }
     val times = AmTheme.type.caption.copy(fontFeatureSettings = "tnum")
     Column {
         ThinSlider(
-            value = if (durationMs > 0) shown / durationMs.toFloat() else 0f,
+            value = bar.value,
             onChange = { seeking = it },
             onRelease = {
                 position = (it * durationMs).toLong()
@@ -425,16 +444,35 @@ private fun ToggleButton(icon: ImageVector, label: String, active: Boolean, onCl
     }
 }
 
+object SkipHint {
+    private var direction = 0
+    private var at = 0L
+
+    fun mark(towards: Int) {
+        direction = towards
+        at = System.currentTimeMillis()
+    }
+
+    fun take(): Int {
+        val recent = System.currentTimeMillis() - at < 1_500L
+        val value = if (recent) direction else 0
+        direction = 0
+        return value
+    }
+}
+
 @Composable
 private fun SharedArtwork(
     sheet: PlayerSheetState,
     queue: () -> Float,
     track: YtTrack,
+    index: Int,
     playing: Boolean,
     fullArt: Rect,
     queueArt: Rect,
     screenWidth: Float,
-    canSkip: Boolean,
+    canNext: Boolean,
+    canPrevious: Boolean,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
 ) {
@@ -442,7 +480,12 @@ private fun SharedArtwork(
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val breathe by animateFloatAsState(if (playing) 1f else 0.84f, spring(dampingRatio = 0.62f, stiffness = 240f), label = "breathe")
-    val swipe = remember { Animatable(0f) }
+    val currentX = remember { Animatable(0f) }
+    val outgoingX = remember { Animatable(0f) }
+    var shown by remember { mutableStateOf(track) }
+    var outgoing by remember { mutableStateOf<YtTrack?>(null) }
+    var lastIndex by remember { mutableIntStateOf(index) }
+    val latestTrack by rememberUpdatedState(track.id)
 
     val p = sheet.progress.value.coerceIn(0f, 1f)
     val q = queue().coerceIn(0f, 1f)
@@ -450,45 +493,85 @@ private fun SharedArtwork(
     val resting = Rect(fullArt.center - Offset(fullArt.width, fullArt.height) * (breathe / 2f), fullArt.size * breathe)
     val rect = lerp(mini, lerp(resting, queueArt, q), p)
     val corner = with(density) { lerp(mini.width / 2f, lerp(18.dp.toPx(), 10.dp.toPx(), q), p) }
-    val swipeSpring = spring<Float>(dampingRatio = 0.8f, stiffness = 340f)
+    val travel = screenWidth * 0.92f
 
-    Box(
-        Modifier
-            .offset { IntOffset((rect.left + swipe.value).roundToInt(), rect.top.roundToInt()) }
-            .requiredSize(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
-            .graphicsLayer {
-                shadowElevation = 28.dp.toPx() * p * (1f - q)
-                shape = RoundedCornerShape(corner)
-                clip = true
-                alpha = 1f - (abs(swipe.value) / screenWidth).coerceIn(0f, 1f) * 0.7f
-            }
-            .draggable(
-                state = rememberDraggableState { delta -> scope.launch { swipe.snapTo(swipe.value + delta) } },
-                orientation = Orientation.Horizontal,
-                enabled = p == 1f && q == 0f,
-                onDragStopped = { velocity ->
-                    val threshold = fullArt.width * 0.28f
-                    when {
-                        (swipe.value < -threshold || velocity < -1400f) && canSkip -> {
-                            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            swipe.animateTo(-screenWidth, swipeSpring, velocity)
-                            onNext()
-                            swipe.snapTo(screenWidth)
-                            swipe.animateTo(0f, swipeSpring)
-                        }
-                        swipe.value > threshold || velocity > 1400f -> {
-                            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            swipe.animateTo(screenWidth, swipeSpring, velocity)
-                            onPrevious()
-                            swipe.snapTo(-screenWidth)
-                            swipe.animateTo(0f, swipeSpring)
-                        }
-                        else -> swipe.animateTo(0f, swipeSpring, velocity)
-                    }
-                },
-            ),
-    ) {
-        Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 160)
-        Cover(track.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 1080, placeholder = false)
+    LaunchedEffect(track.id) {
+        if (track.id == shown.id) return@LaunchedEffect
+        val hinted = SkipHint.take()
+        val forward = when {
+            hinted != 0 -> hinted > 0
+            index < lastIndex -> lastIndex - index > 1 && index == 0
+            else -> true
+        }
+        lastIndex = index
+        val from = currentX.value
+        outgoing = shown
+        shown = track
+        if (p < 0.99f || q > 0.01f) {
+            outgoing = null
+            currentX.snapTo(0f)
+            return@LaunchedEffect
+        }
+        outgoingX.snapTo(from)
+        currentX.snapTo(if (forward) travel else -travel)
+        coroutineScope {
+            launch { outgoingX.animateTo(if (forward) -travel else travel, spring(dampingRatio = 1f, stiffness = 240f)) }
+            launch { currentX.animateTo(0f, spring(dampingRatio = 0.88f, stiffness = 240f)) }
+        }
+        outgoing = null
     }
+
+    @Composable
+    fun Frame(item: YtTrack, offset: () -> Float, modifier: Modifier = Modifier) {
+        Box(
+            modifier
+                .offset { IntOffset((rect.left + offset()).roundToInt(), rect.top.roundToInt()) }
+                .requiredSize(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
+                .graphicsLayer {
+                    val away = (abs(offset()) / travel).coerceIn(0f, 1f)
+                    shadowElevation = 28.dp.toPx() * p * (1f - q) * (1f - away)
+                    shape = RoundedCornerShape(corner)
+                    clip = true
+                    alpha = 1f - away * 0.55f
+                    val shrink = 1f - 0.08f * away
+                    scaleX = shrink
+                    scaleY = shrink
+                },
+        ) {
+            Cover(item.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 160)
+            Cover(item.thumbnail, Modifier.fillMaxSize(), corner = 0.dp, requestSize = 1080, placeholder = false)
+        }
+    }
+
+    outgoing?.let { Frame(it, { outgoingX.value }) }
+    Frame(
+        item = shown,
+        offset = { currentX.value },
+        modifier = Modifier.draggable(
+            state = rememberDraggableState { delta ->
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    val next = currentX.value + delta
+                    val blocked = (next < 0f && !canNext) || (next > 0f && !canPrevious)
+                    currentX.snapTo(if (blocked) currentX.value + delta * 0.3f else next)
+                }
+            },
+            orientation = Orientation.Horizontal,
+            enabled = p == 1f && q == 0f,
+            onDragStopped = { velocity ->
+                val threshold = fullArt.width * 0.22f
+                val before = latestTrack
+                val goNext = (currentX.value < -threshold || velocity < -900f) && canNext && velocity < 600f
+                val goPrevious = (currentX.value > threshold || velocity > 900f) && canPrevious && velocity > -600f
+                if (goNext || goPrevious) {
+                    haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                    SkipHint.mark(if (goNext) 1 else -1)
+                    if (goNext) onNext() else onPrevious()
+                    val changed = withTimeoutOrNull(800) { snapshotFlow { latestTrack }.first { it != before } }
+                    if (changed == null) currentX.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 340f))
+                } else {
+                    currentX.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 340f), velocity)
+                }
+            },
+        ),
+    )
 }

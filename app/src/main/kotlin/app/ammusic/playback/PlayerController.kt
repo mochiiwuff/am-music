@@ -46,6 +46,7 @@ data class PlayerState(
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
     val hasNext: Boolean = false,
+    val hasPrevious: Boolean = false,
     val failed: Boolean = false,
     val durationMs: Long = 0L,
     val queue: List<YtTrack> = emptyList(),
@@ -136,6 +137,8 @@ class PlayerController @Inject constructor(
     fun next() = withPlayer { it.seekToNextMediaItem() }
 
     fun previous() = withPlayer { it.seekToPrevious() }
+
+    fun previousTrack() = withPlayer { if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem() else it.seekTo(0L) }
 
     fun seekTo(positionMs: Long) = withPlayer { it.seekTo(positionMs) }
 
@@ -335,6 +338,7 @@ class PlayerController @Inject constructor(
             isPlaying = player.isPlaying,
             isLoading = player.playWhenReady && player.playbackState == Player.STATE_BUFFERING,
             hasNext = player.hasNextMediaItem(),
+            hasPrevious = player.hasPreviousMediaItem(),
             failed = player.playerError != null,
             durationMs = player.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L,
             queue = queue,

@@ -219,14 +219,14 @@ fun LyricsPanel(progress: () -> Float, top: Dp, state: PlayerState, player: Play
             }
         }
         Row(Modifier.fillMaxWidth().height(84.dp), Arrangement.Center, Alignment.CenterVertically) {
-            IconButton(AmIcons.Previous, label = tr("Titre précédent", "Previous song"), onClick = player::previous, tint = Color.White, iconSize = 30.dp)
+            IconButton(AmIcons.Previous, label = tr("Titre précédent", "Previous song"), onClick = { SkipHint.mark(-1); player.previous() }, tint = Color.White, iconSize = 30.dp)
             Box(
                 Modifier.padding(horizontal = 28.dp).size(64.dp).pressable(scale = 0.86f, haptic = true, label = tr("Lecture ou pause", "Play or pause"), onClick = player::toggle),
                 contentAlignment = Alignment.Center,
             ) {
                 PlayPauseIcon(playing = state.isPlaying || state.isLoading, color = Color.White, size = 34.dp)
             }
-            IconButton(AmIcons.Next, label = tr("Titre suivant", "Next song"), onClick = player::next, tint = if (state.hasNext) Color.White else Soft, iconSize = 30.dp)
+            IconButton(AmIcons.Next, label = tr("Titre suivant", "Next song"), onClick = { SkipHint.mark(1); player.next() }, tint = if (state.hasNext) Color.White else Soft, iconSize = 30.dp)
         }
         }
     }

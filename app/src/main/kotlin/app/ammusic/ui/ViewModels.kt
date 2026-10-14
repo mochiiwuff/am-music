@@ -90,6 +90,8 @@ class PlayerViewModel @Inject constructor(
 
     fun previous() = controller.previous()
 
+    fun previousTrack() = controller.previousTrack()
+
     fun seekTo(positionMs: Long) = controller.seekTo(positionMs)
 
     fun playAt(index: Int) = controller.playAt(index)
